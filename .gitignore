@@ -1,3 +1,10 @@
+*~
+.pypirc
+~*
+tmp*
+tags
+data
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -99,3 +106,14 @@ ENV/
 
 # mypy
 .mypy_cache/
+
+.vscode
+*.swp
+
+# osx generated files
+.DS_Store
+.DS_Store?
+.Trashes
+ehthumbs.db
+Thumbs.db
+.idea
