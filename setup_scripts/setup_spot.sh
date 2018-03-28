@@ -14,7 +14,7 @@
 
 export region=$(aws configure get region)
 export ami="ami-8c4288f4" # Oregon
-export instanceType="t2.xlarge"
+export instanceType="t2.nano"
 
 # settings
 export name="fast-ai"
