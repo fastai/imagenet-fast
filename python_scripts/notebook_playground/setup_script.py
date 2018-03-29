@@ -1,5 +1,8 @@
 #!/usr/bin/python2.7 -u
 
+
+# Copied from online source - https://peteris.rocks/blog/script-to-launch-amazon-ec2-spot-instances/
+
 # pip install boto paramiko
 
 import argparse
