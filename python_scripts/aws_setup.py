@@ -153,6 +153,9 @@ def wait_on_fullfillment(req_status):
     print('Fullfillment completed. InstanceId:', instance_id)
     return instance_id
     
+def get_spot_prices():
+    hist = ec2c.describe_spot_price_history()['SpotPriceHistory']
+    return {h['InstanceType']:h['SpotPrice'] for h in hist}
     
 def create_spot_instance(name, vpc, spot_price='0.5', instance_type='t2.micro'):
     sg_id, subnet_id = get_vpc_info(vpc)
