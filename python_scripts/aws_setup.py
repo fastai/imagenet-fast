@@ -103,27 +103,12 @@ def allocate_vpc_addr(instance_id):
     ec2c.associate_address(InstanceId=instance_id, AllocationId=alloc_addr['AllocationId'])
     return alloc_addr
 
-def create_instance(name, vpc, instance_type='t2.nano'):
-    ami = get_ami(session.region_name)
-    sg_id, subnet_id = get_vpc_info(vpc)
-    network_interfaces=[{
-        'DeviceIndex': 0,
-        'SubnetId': subnet_id,
-        'Groups': [sg_id],
-        'AssociatePublicIpAddress': True            
-    }]
-    block_device_mappings = [{ 
-        'DeviceName': '/dev/sda1', 
-        'Ebs': { 
-            'VolumeSize': 100, 
-            'VolumeType': 'gp2' 
-        } 
-    }]
-    instance = ec2.create_instances(ImageId=ami, InstanceType=instance_type, 
+def create_instance(name, launch_specs):
+    instance = ec2.create_instances(ImageId=launch_specs['ImageId'], InstanceType=launch_specs['InstanceType'], 
                      MinCount=1, MaxCount=1,
-                     KeyName=f'aws-key-{name}',
-                     BlockDeviceMappings=block_device_mappings,
-                     NetworkInterfaces=network_interfaces
+                     KeyName=launch_specs['KeyName'],
+                     BlockDeviceMappings=launch_specs['BlockDeviceMappings'],
+                     NetworkInterfaces=launch_specs['NetworkInterfaces']
                     )[0]
     instance.create_tags(Tags=[{'Key':'Name','Value':f'{name}'}])
     
@@ -156,38 +141,43 @@ def wait_on_fullfillment(req_status):
 def get_spot_prices():
     hist = ec2c.describe_spot_price_history()['SpotPriceHistory']
     return {h['InstanceType']:h['SpotPrice'] for h in hist}
+
+class LaunchSpecs:
+    def __init__(self, vpc, instance_type='t2.micro'):
+        self.ami = get_ami()
+        self.sg_id, self.subnet_id = get_vpc_info(vpc)
+        self.instance_type = instance_type
+        self.device = '/dev/sda1'
+        self.volume_size = 100
+        self.volume_type = 'gp2'
+        self.vpc_tagname = list(filter(lambda i: i['Key'] == 'Name', vpc.tags))[0]['Value']
+        self.keypair_name = f'aws-key-{self.vpc_tagname}'
+
+    def build(self):        
+        launch_specification = {
+            'ImageId': self.ami, 
+            'InstanceType': self.instance_type, 
+            'KeyName': self.keypair_name,
+            'NetworkInterfaces': [{
+                'DeviceIndex': 0,
+                'SubnetId': self.subnet_id,
+                'Groups': [self.sg_id],
+                'AssociatePublicIpAddress': True            
+            }],
+            'BlockDeviceMappings': [{
+                'DeviceName': '/dev/sda1', 
+                'Ebs': {
+                    # Volume size must be greater than snapshot size of 80
+                    'VolumeSize': self.volume_size, 
+                    'DeleteOnTermination': True,
+                    'VolumeType': self.volume_type
+                }
+            }]
+        }
+        return launch_specification
     
-def create_spot_instance(name, vpc, spot_price='0.5', instance_type='t2.micro'):
-    sg_id, subnet_id = get_vpc_info(vpc)
-    ami = get_ami()
-    launch_specification = {
-        'ImageId': ami, 
-        'InstanceType': instance_type, 
-        'KeyName': f'aws-key-{name}',
-        'NetworkInterfaces': [{
-            'DeviceIndex': 0,
-            'SubnetId': subnet_id,
-            'Groups': [sg_id],
-            'AssociatePublicIpAddress': True            
-        }],
-        'BlockDeviceMappings': [{
-            'DeviceName': '/dev/sda1', 
-            'Ebs': {
-                # Volume size must be greater than snapshot size of 80
-                'VolumeSize': 100, 
-                'DeleteOnTermination': True,
-    #             'DeleteOnTermination': True
-
-                # SSD - use this to save money
-                'VolumeType': 'gp2',
-
-                # SSD io1 - superfast and doesn't work
-                # 'VolumeType': 'io1',
-                # 'Iops': 1000
-            }
-        }]
-    }
-    spot_requests = ec2c.request_spot_instances(SpotPrice=spot_price, LaunchSpecification=launch_specification)
+def create_spot_instance(name, launch_specs, spot_price='0.5'):
+    spot_requests = ec2c.request_spot_instances(SpotPrice=spot_price, LaunchSpecification=launch_specs)
     spot_request = spot_requests['SpotInstanceRequests'][0]
     instance_id = wait_on_fullfillment(spot_request)
 
