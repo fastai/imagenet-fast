@@ -1,19 +1,25 @@
 import argparse
 import boto3
+import paramiko
 import os, sys, time
 from pathlib import Path
 
 session = boto3.Session()
 ec2 = session.resource('ec2')
+ec2c = session.client('ec2')
 
 def get_vpc(name):
     vpcs = list(ec2.vpcs.filter(Filters=[{'Name': 'tag-value', 'Values': [name]}]))
     return vpcs[0] if vpcs else None
 
+def get_instance(name):
+    instances = list(ec2.instances.filter(Filters=[{'Name': 'tag-value', 'Values': [name]}]))
+    return instances[0] if instances else None
+
 def get_vpc_ids(name):
     vpc = get_vpc(name)
     if vpc is None: return None
-    sg = list(vpc.security_groups.all())[0]
+    sg = list(vpc.security_groups.filter(Filters=[{'Name': 'group-name', 'Values': [f'{name}-security-group']}]))[0]
     subnet = list(vpc.subnets.all())[0]
     return vpc.id, sg.id, subnet.id
 
@@ -31,6 +37,9 @@ def create_ec2_keypair(name):
     outfile.write(keypair_out)
     os.chmod(filename, 0o400)
     print('Created keypair')
+
+def get_ssh_command(instance):
+    return f'ssh -i ~/.ssh/aws-key-fast-ai.pem ubuntu@{instance.public_ip_address}'
 
 def create_vpc(name):
     cidr_block='10.0.0.0/28'
@@ -55,40 +64,50 @@ def create_vpc(name):
     
     
     cidr = '0.0.0.0/0'
-    sg = vpc.create_security_group(GroupName=f'{name}-security-group-test', Description='SG for {name} machine')
+    sg = vpc.create_security_group(GroupName=f'{name}-security-group', Description='SG for {name} machine')
     # ssh
     sg.authorize_ingress(IpProtocol='tcp', FromPort=22, ToPort=22, CidrIp=cidr)
     # jupyter notebook
     sg.authorize_ingress(IpProtocol='tcp', FromPort=8888, ToPort=8898, CidrIp=cidr)
+    # allow efs
+    IpPermissions=[{
+        'FromPort': 2049,
+        'ToPort': 2049,
+        'IpProtocol': 'tcp',
+        'UserIdGroupPairs': [{ 'GroupId': sg.id }],
+    }]
+    sg.authorize_ingress(IpPermissions=IpPermissions)
     
     return vpc
 
-region2ami = {
-    'us-west-2': 'ami-8c4288f4',
-    'eu-west-1': 'ami-b93c9ec0',
-    'us-east-1': 'ami-c6ac1cbc'
-}
+def get_ami(region=None):
+    if region is None: region = session.region_name
+    region2ami = {
+        'us-west-2': 'ami-8c4288f4',
+        'eu-west-1': 'ami-b93c9ec0',
+        'us-east-1': 'ami-c6ac1cbc'
+    }
+    return region2ami[region]
 
 def allocate_vpc_addr(instance_id):
-    ec2c = session.client('ec2')
     alloc_addr = ec2c.allocate_address(Domain='vpc')
-    addr_id = alloc_addr['AllocationId']
-    ec2c.associate_address(InstanceId=instance_id, AllocationId=addr_id)
-    return addr_id
+    ec2c.associate_address(InstanceId=instance_id, AllocationId=alloc_addr['AllocationId'])
+    return alloc_addr
 
-def create_instance(name, instance_type='t2.nano'):
-    ami = region2ami[session.region_name]
+def create_instance(name, instance_type='t2.nano', ebs_volume=(128, 'io1')):
+    
+    ami = get_ami(session.region_name)
     vpc_id, sg_id, subnet_id = get_vpc_ids(name)
     network_interfaces=[{
-    'DeviceIndex': 0,
-    'SubnetId': subnet_id,
-    'Groups': [sg_id],
-    'AssociatePublicIpAddress': True            
+        'DeviceIndex': 0,
+        'SubnetId': subnet_id,
+        'Groups': [sg_id],
+        'AssociatePublicIpAddress': True            
     }]
     block_device_mappings = [{ 
         'DeviceName': '/dev/sda1', 
         'Ebs': { 
-            'VolumeSize': 128, 
+            'VolumeSize': 100, 
             'VolumeType': 'gp2' 
         } 
     }]
@@ -102,11 +121,133 @@ def create_instance(name, instance_type='t2.nano'):
     
     print('Instance created...')
     instance.wait_until_running()
-    
+
     print('Creating public IP address...')
-    addr_id = allocate_vpc_addr(instance.id)
+    addr_id = allocate_vpc_addr(instance.id)['AllocationId']
     
     print('Rebooting...')
     instance.reboot()
     instance.wait_until_running()
     return instance
+
+
+def wait_on_fullfillment(req_status):
+    while req_status['State'] != 'active':
+        print('Waiting on spot fullfillment...')
+        time.sleep(5)
+        req_statuses = ec2c.describe_spot_instance_requests(Filters=[{'Name': 'spot-instance-request-id', 'Values': [req_status['SpotInstanceRequestId']]}])
+        req_status = req_statuses['SpotInstanceRequests'][0]
+        if req_status['State'] == 'failed' or req_status['State'] == 'closed':
+            print('Spot instance request failed:', req_status['Status'])
+            return None
+    instance_id = req_status['InstanceId']
+    print('Fullfillment completed. InstanceId:', instance_id)
+    return instance_id
+    
+    
+def create_spot_instance(name, instance_type='t2.micro'):
+    vpc_id, sg_id, subnet_id = get_vpc_ids(name)
+    ami = get_ami()
+    launch_specification = {
+        'ImageId': ami, 
+        'InstanceType': instance_type, 
+        'KeyName': f'aws-key-{name}',
+        'NetworkInterfaces': [{
+            'DeviceIndex': 0,
+            'SubnetId': subnet_id,
+            'Groups': [sg_id],
+            'AssociatePublicIpAddress': True            
+        }],
+        'BlockDeviceMappings': [{
+            'DeviceName': '/dev/sda1', 
+            'Ebs': {
+                # Volume size must be greater than snapshot size of 80
+                'VolumeSize': 100, 
+                'DeleteOnTermination': True,
+    #             'DeleteOnTermination': True
+
+                # SSD - use this to save money
+                'VolumeType': 'gp2',
+
+                # SSD io1 - superfast and doesn't work
+                # 'VolumeType': 'io1',
+                # 'Iops': 1000
+            }
+        }]
+    }
+    spot_requests = ec2c.request_spot_instances(SpotPrice='0.5', LaunchSpecification=launch_specification)
+    spot_request = spot_requests['SpotInstanceRequests'][0]
+    instance_id = wait_on_fullfillment(spot_request)
+
+    print('Rebooting...')
+    instance = list(ec2.instances.filter(Filters=[{'Name': 'instance-id', 'Values': [instance_id]}]))[0]
+    instance.reboot()
+    instance.wait_until_running()
+    instance.create_tags(Tags=[{'Key':'Name','Value':f'{name}-gpu-machine'}])
+    return instance
+
+
+def create_efs(name):
+    vpc_id, sg_id, subnet_id = get_vpc_ids(name)
+    efsc = session.client('efs')
+    efs_response = efsc.create_file_system(CreationToken=f'{name}-efs', PerformanceMode='generalPurpose')
+    efs_id = efs_response['FileSystemId']
+    efsc.create_tags(FileSystemId=efs_id, Tags=[{'Key': 'Name', 'Value': f'{name}-efs'}])
+    
+    mount_target = efsc.create_mount_target(FileSystemId=efs_id,
+                                              SubnetId=subnet_id,
+                                              SecurityGroups=[sg_id])
+    return mount_target
+
+def attach_volume(instance, volume_tag, device='/dev/xvdf'):
+    volumes = list(ec2.volumes.filter(Filters=[{'Name': 'tag-value', 'Values': [volume_tag]}]))
+    if not volumes: print('Could not find volume for tag:', volume_tag); return
+    instance.attach_volume(Device=device, VolumeId=volumes[0].id)
+    instance.reboot()
+    instance.wait_until_running()
+
+    # TODO: need to make sure ebs is formatted correctly inside the instance
+    return instance
+
+def create_volume(name, size=120, volume_type='gp2'):
+    tag_specs = [{
+        'Tags': [{
+            'Key': 'Name',
+            'Value': f'{name}-ebs-volume'
+        }]
+    }]
+    volume = ec2.create_volume(Size=size, VolumeType=volume_type, TagSpecifications=tag_specs)
+    return volume
+    
+def connect_to_instance(instance, keypath=f'{Path.home()}/.ssh/aws-key-fast-ai.pem', username='ubuntu', timeout=10):
+    print('Connecting to SSH...')
+    
+    client = paramiko.SSHClient()
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    retries = 20
+    while retries > 0:
+        try:
+            client.connect(instance.public_ip_address, username=username, key_filename=keypath, timeout=timeout)
+            print('Connected!')
+            break
+        except Exception as e:
+            print(f'Exception: {e} Retrying...')
+            retries = retries - 1
+    return client
+
+def run_command(client, cmd, inputs=[]):
+    stdin, stdout, stderr = client.exec_command('ls -l', get_pty=True)
+    for inp in inputs:
+        # example = 'mypassword\n'
+        stdin.write(inp)
+    stdout_str = stdout.read().decode('ascii')
+    stderr_str = stderr.read().decode('ascii')
+    
+#     print("run_sync returned: " + stdout_str)
+    return stdout_str, stderr_str
+
+def upload_file(client, localpath, remotepath):
+    #     file = f'{Path.home()}/Projects/ML/fastai/fastai_imagenet/testfile.txt'
+    ftp_client=client.open_sftp()
+    ftp_client.put(localpath, remotepath)
+    ftp_client.close()
