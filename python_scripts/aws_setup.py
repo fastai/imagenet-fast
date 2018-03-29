@@ -16,12 +16,21 @@ def get_instance(name):
     instances = list(ec2.instances.filter(Filters=[{'Name': 'tag-value', 'Values': [name]}]))
     return instances[0] if instances else None
 
+def get_vpc_info(vpc):
+    try:
+        vpc_tag_name = list(filter(lambda i: i['Key'] == 'Name', vpc.tags))[0]['Value']
+        sg = list(vpc.security_groups.filter(Filters=[{'Name': 'group-name', 'Values': [f'{vpc_tag_name}-security-group']}]))[0]
+        subnet = list(vpc.subnets.filter(Filters=[{'Name': 'tag-value', 'Values': [f'{vpc_tag_name}-subnet']}]))[0]
+    except Exception as e:
+        print('Could not get VPC info: ', e)
+    return sg.id, subnet.id
+    
+
 def get_vpc_ids(name):
     vpc = get_vpc(name)
     if vpc is None: return None
-    sg = list(vpc.security_groups.filter(Filters=[{'Name': 'group-name', 'Values': [f'{name}-security-group']}]))[0]
-    subnet = list(vpc.subnets.all())[0]
-    return vpc.id, sg.id, subnet.id
+    sg_id, subnet_id = get_vpc_info(vpc)
+    return vpc.id, sg_id, subnet_id
 
 def create_ec2_keypair(name):
     ssh_dir = Path.home()/'.ssh'
@@ -39,7 +48,7 @@ def create_ec2_keypair(name):
     print('Created keypair')
 
 def get_ssh_command(instance):
-    return f'ssh -i ~/.ssh/aws-key-fast-ai.pem ubuntu@{instance.public_ip_address}'
+    return f'ssh -i ~/.ssh/{instance.key_name}.pem ubuntu@{instance.public_ip_address}'
 
 def create_vpc(name):
     cidr_block='10.0.0.0/28'
@@ -94,10 +103,9 @@ def allocate_vpc_addr(instance_id):
     ec2c.associate_address(InstanceId=instance_id, AllocationId=alloc_addr['AllocationId'])
     return alloc_addr
 
-def create_instance(name, instance_type='t2.nano', ebs_volume=(128, 'io1')):
-    
+def create_instance(name, vpc, instance_type='t2.nano'):
     ami = get_ami(session.region_name)
-    vpc_id, sg_id, subnet_id = get_vpc_ids(name)
+    sg_id, subnet_id = get_vpc_info(vpc)
     network_interfaces=[{
         'DeviceIndex': 0,
         'SubnetId': subnet_id,
@@ -117,7 +125,7 @@ def create_instance(name, instance_type='t2.nano', ebs_volume=(128, 'io1')):
                      BlockDeviceMappings=block_device_mappings,
                      NetworkInterfaces=network_interfaces
                     )[0]
-    instance.create_tags(Tags=[{'Key':'Name','Value':f'{name}-gpu-machine'}])
+    instance.create_tags(Tags=[{'Key':'Name','Value':f'{name}'}])
     
     print('Instance created...')
     instance.wait_until_running()
@@ -128,6 +136,7 @@ def create_instance(name, instance_type='t2.nano', ebs_volume=(128, 'io1')):
     print('Rebooting...')
     instance.reboot()
     instance.wait_until_running()
+    print(f'Completed. SSH: ', get_ssh_command(instance))
     return instance
 
 
@@ -145,8 +154,8 @@ def wait_on_fullfillment(req_status):
     return instance_id
     
     
-def create_spot_instance(name, instance_type='t2.micro'):
-    vpc_id, sg_id, subnet_id = get_vpc_ids(name)
+def create_spot_instance(name, vpc, spot_price='0.5', instance_type='t2.micro'):
+    sg_id, subnet_id = get_vpc_info(vpc)
     ami = get_ami()
     launch_specification = {
         'ImageId': ami, 
@@ -175,7 +184,7 @@ def create_spot_instance(name, instance_type='t2.micro'):
             }
         }]
     }
-    spot_requests = ec2c.request_spot_instances(SpotPrice='0.5', LaunchSpecification=launch_specification)
+    spot_requests = ec2c.request_spot_instances(SpotPrice=spot_price, LaunchSpecification=launch_specification)
     spot_request = spot_requests['SpotInstanceRequests'][0]
     instance_id = wait_on_fullfillment(spot_request)
 
@@ -183,21 +192,31 @@ def create_spot_instance(name, instance_type='t2.micro'):
     instance = list(ec2.instances.filter(Filters=[{'Name': 'instance-id', 'Values': [instance_id]}]))[0]
     instance.reboot()
     instance.wait_until_running()
-    instance.create_tags(Tags=[{'Key':'Name','Value':f'{name}-gpu-machine'}])
+    instance.create_tags(Tags=[{'Key':'Name','Value':f'{name}'}])
+    print(f'Completed. SSH: ', get_ssh_command(instance))
     return instance
 
 
-def create_efs(name):
-    vpc_id, sg_id, subnet_id = get_vpc_ids(name)
+def create_efs(name, vpc):
+    sg_id, subnet_id = get_vpc_info(vpc)
     efsc = session.client('efs')
-    efs_response = efsc.create_file_system(CreationToken=f'{name}-efs', PerformanceMode='generalPurpose')
+    efs_response = efsc.create_file_system(CreationToken=f'{name}', PerformanceMode='generalPurpose')
     efs_id = efs_response['FileSystemId']
-    efsc.create_tags(FileSystemId=efs_id, Tags=[{'Key': 'Name', 'Value': f'{name}-efs'}])
+    efsc.create_tags(FileSystemId=efs_id, Tags=[{'Key': 'Name', 'Value': f'{name}'}])
     
     mount_target = efsc.create_mount_target(FileSystemId=efs_id,
                                               SubnetId=subnet_id,
                                               SecurityGroups=[sg_id])
-    return mount_target
+    return efs_response
+
+def get_efs_address(name):
+    efsc = session.client('efs')
+    file_systems = efsc.describe_file_systems()['FileSystems']
+    target = list(filter(lambda x: x['Name'] == name, file_systems))
+    if target:
+        fs_id = target[0]['FileSystemId']
+        region = session.region_name
+        return f'{fs_id}.efs.{region}.amazonaws.com'
 
 def attach_volume(instance, volume_tag, device='/dev/xvdf'):
     volumes = list(ec2.volumes.filter(Filters=[{'Name': 'tag-value', 'Values': [volume_tag]}]))
@@ -205,7 +224,7 @@ def attach_volume(instance, volume_tag, device='/dev/xvdf'):
     instance.attach_volume(Device=device, VolumeId=volumes[0].id)
     instance.reboot()
     instance.wait_until_running()
-
+    print('Volume attached. Please make sure to ssh into instance to format (if new volume) and mount')
     # TODO: need to make sure ebs is formatted correctly inside the instance
     return instance
 
@@ -213,7 +232,7 @@ def create_volume(name, size=120, volume_type='gp2'):
     tag_specs = [{
         'Tags': [{
             'Key': 'Name',
-            'Value': f'{name}-ebs-volume'
+            'Value': f'{name}'
         }]
     }]
     volume = ec2.create_volume(Size=size, VolumeType=volume_type, TagSpecifications=tag_specs)
@@ -233,17 +252,18 @@ def connect_to_instance(instance, keypath=f'{Path.home()}/.ssh/aws-key-fast-ai.p
         except Exception as e:
             print(f'Exception: {e} Retrying...')
             retries = retries - 1
+            time.sleep(10)
     return client
 
 def run_command(client, cmd, inputs=[]):
-    stdin, stdout, stderr = client.exec_command('ls -l', get_pty=True)
+    stdin, stdout, stderr = client.exec_command(cmd, get_pty=True)
     for inp in inputs:
         # example = 'mypassword\n'
         stdin.write(inp)
-    stdout_str = stdout.read().decode('ascii')
-    stderr_str = stderr.read().decode('ascii')
+    stdout_str = stdout.read().decode('utf8')
+    stderr_str = stderr.read().decode('utf8')
     
-#     print("run_sync returned: " + stdout_str)
+    print("run_command returned: \n" + stdout_str)
     return stdout_str, stderr_str
 
 def upload_file(client, localpath, remotepath):
