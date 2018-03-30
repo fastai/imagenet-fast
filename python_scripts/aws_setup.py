@@ -190,10 +190,10 @@ def create_spot_instance(name, launch_specs, spot_price='0.5'):
     return instance
 
 
-def create_efs(name, vpc):
+def create_efs(name, vpc, performance_mode='generalPurpose'):
     sg_id, subnet_id = get_vpc_info(vpc)
     efsc = session.client('efs')
-    efs_response = efsc.create_file_system(CreationToken=f'{name}', PerformanceMode='generalPurpose')
+    efs_response = efsc.create_file_system(CreationToken=f'{name}', PerformanceMode=performance_mode)
     efs_id = efs_response['FileSystemId']
     efsc.create_tags(FileSystemId=efs_id, Tags=[{'Key': 'Name', 'Value': f'{name}'}])
     
