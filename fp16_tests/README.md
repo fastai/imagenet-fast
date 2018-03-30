@@ -1,9 +1,9 @@
 # Tests to see if half precision (fp16) is working
 
 ### Measure performance in notebook
-Run measure_fp16.ipynb
-The results of a v100 should be similar these:
-https://discuss.pytorch.org/t/solved-titan-v-on-pytorch-0-3-0-cuda-9-0-cudnn-7-0-is-much-slower-than-1080-ti/11320/10
+* Run measure_fp16.ipynb
+* You should see results (on v100) similar to this:  
+* https://discuss.pytorch.org/t/solved-titan-v-on-pytorch-0-3-0-cuda-9-0-cudnn-7-0-is-much-slower-than-1080-ti/11320/10
 
 ### Profile CUDA to make sure it is utilizing half precision
 1. `pip install nvprof`
