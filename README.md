@@ -1,7 +1,7 @@
-# End to end imagenet training
+# End to end ImageNet training
 
 1. Spin up an AWS instance
-2. Train imagnet
+2. Train ImageNet
 3. Save weights and loss
 
 ### AWS
