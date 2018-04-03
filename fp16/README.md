@@ -7,7 +7,11 @@
 
 ### Profile CUDA to make sure it is utilizing half precision
 1. `pip install nvprof`
-2. `/usr/local/cuda/bin/nvprof --log-file nvprof_output.txt python fp16_test.py`
+2. `/usr/local/cuda/bin/nvprof --log-file nvprof_output.txt python profile_fp16.py`
 3. `cat nvprof_output.txt | grep fp16_s884`
 
 You should see some 884 calls
+
+
+### Awesome Nvidia resource on model conversion and why we need to copy model parameters
+* http://docs.nvidia.com/deeplearning/sdk/mixed-precision-training/index.html#multigpu
