@@ -107,6 +107,7 @@ def create_instance(name, launch_specs):
     instance = ec2.create_instances(ImageId=launch_specs['ImageId'], InstanceType=launch_specs['InstanceType'], 
                      MinCount=1, MaxCount=1,
                      KeyName=launch_specs['KeyName'],
+                     InstanceInitiatedShutdownBehavior='terminate',
                      BlockDeviceMappings=launch_specs['BlockDeviceMappings'],
                      NetworkInterfaces=launch_specs['NetworkInterfaces']
                     )[0]
@@ -129,10 +130,13 @@ def wait_on_fullfillment(req_status):
     while req_status['State'] != 'active':
         print('Waiting on spot fullfillment...')
         time.sleep(5)
-        req_statuses = ec2c.describe_spot_instance_requests(Filters=[{'Name': 'spot-instance-request-id', 'Values': [req_status['SpotInstanceRequestId']]}])
-        req_status = req_statuses['SpotInstanceRequests'][0]
-        if req_status['State'] == 'failed' or req_status['State'] == 'closed':
-            print('Spot instance request failed:', req_status['Status'])
+        reqs = ec2c.describe_spot_instance_requests(Filters=[{'Name': 'spot-instance-request-id', 'Values': [req_status['SpotInstanceRequestId']]}])
+        req = reqs['SpotInstanceRequests'][0]
+        req_status = req['Status']
+        if req_status not in ['pending-evaluation', 'pending-fullfillment', 'fulfilled']:
+            print('Spot instance request failed:', req_status['Message'])
+            print('Cancelling request. Please try again or use on demand.')
+            ec2c.cancel_spot_instance_requests(SpotInstanceRequestIds=[req['SpotInstanceRequestId']])
             return None
     instance_id = req_status['InstanceId']
     print('Fullfillment completed. InstanceId:', instance_id)
@@ -180,6 +184,8 @@ def create_spot_instance(name, launch_specs, spot_price='0.5'):
     spot_requests = ec2c.request_spot_instances(SpotPrice=spot_price, LaunchSpecification=launch_specs)
     spot_request = spot_requests['SpotInstanceRequests'][0]
     instance_id = wait_on_fullfillment(spot_request)
+    if not instance_id:
+        return
 
     print('Rebooting...')
     instance = list(ec2.instances.filter(Filters=[{'Name': 'instance-id', 'Values': [instance_id]}]))[0]
@@ -231,6 +237,9 @@ def create_volume(name, size=120, volume_type='gp2'):
     volume = ec2.create_volume(Size=size, VolumeType=volume_type, TagSpecifications=tag_specs)
     return volume
     
+
+# SSH
+
 def connect_to_instance(instance, keypath=f'{Path.home()}/.ssh/aws-key-fast-ai.pem', username='ubuntu', timeout=10):
     print('Connecting to SSH...')
     
@@ -248,7 +257,7 @@ def connect_to_instance(instance, keypath=f'{Path.home()}/.ssh/aws-key-fast-ai.p
             time.sleep(10)
     return client
 
-def run_command(client, cmd, inputs=[]):
+def run_command(client, cmd, inputs=[], print_output=False):
     stdin, stdout, stderr = client.exec_command(cmd, get_pty=True)
     for inp in inputs:
         # example = 'mypassword\n'
@@ -256,7 +265,8 @@ def run_command(client, cmd, inputs=[]):
     stdout_str = stdout.read().decode('utf8')
     stderr_str = stderr.read().decode('utf8')
     
-    print("run_command returned: \n" + stdout_str)
+    if print_output:
+        print("run_command returned: \n" + stdout_str)
     return stdout_str, stderr_str
 
 def upload_file(client, localpath, remotepath):
@@ -264,3 +274,25 @@ def upload_file(client, localpath, remotepath):
     ftp_client=client.open_sftp()
     ftp_client.put(localpath, remotepath)
     ftp_client.close()
+
+    return run_command(client, f'chmod +x {remotepath}')
+
+
+# TMUX
+class TmuxSession:
+    def __init__(self, client, name):
+        self.client = client
+        self.name = name
+        out, _ = attach()
+        if "can't find session" in out:
+            run_command(client, f'tmux new-session -s {name} -n w0 -d')
+        else:
+            print('Existing session found. Attaching to', name)
+        self.windows = ['w0']
+        
+    def attach(self):
+        return run_command(client, f'tmux a -t {self.name}')
+        
+    def run_cmd(self, cmd):
+        return run_command(client, f'tmux send-keys -t {self.name} "{cmd}" Enter')
+        
