@@ -1,47 +1,46 @@
 #!/bin/bash
 
-# Update Server
-sudo dpkg --configure -a
-sudo apt-get upgrade
-
-# Long running task
-tmux
-
-# Download imagnet from Kaggle
-source activate fastai
-pip install kaggle
-chmod 600 /home/ubuntu/.kaggle/kaggle.json
-kaggle competitions download -c imagenet-object-localization-challenge
-cd ~/.kaggle/competitions/imagenet-object-localization-challenge
-tar -xvzf imagenet_object_localization.tar.gz -C ~/
-
-
 # Install Pillow-simd for speed
-pip uninstall pillow
+yes | pip uninstall pillow
 CC="cc -mavx2" pip install -U --force-reinstall pillow-simd
 
-# Format validation set
-cd ~/ILSVRC/Data/CLS-LOC/val
-wget -qO- https://raw.githubusercontent.com/soumith/imagenetloader.torch/master/valprep.sh | bash
-rm valprep.sh
+imagenet_dir=~/ILSVRC/Data/CLS-LOC
+
+if [ ! -d $imagenet_dir/val/n01440764 ]; then
+    echo "Formatting validation set"
+    # Following format here: https://github.com/soumith/imagenet-multiGPU.torch
+    cd $imagenet_dir/val
+    wget -qO- https://raw.githubusercontent.com/soumith/imagenetloader.torch/master/valprep.sh | bash
+    cd ~/
+else
+    echo "Validation set already formatted"
+fi
 
 # Create resizing directory
-mkdir ~/ILSVRC/Data/CLS-LOC/resized_output
+output_dir=$imagenet_dir/resized_output
+mkdir $output_dir
 
-# Run Jupyter notebook - Resize_images.ipynb
+# Run Jupyter notebook - resize_images.ipynb
 # Resize images for desired sizes
-jupyter notebook  --ip=0.0.0.0 --port=8888 --no-browser
+# jupyter notebook  --ip=0.0.0.0 --port=8888 --no-browser
 
+conda install fire -c conda-forge
 # Tar individual sizes
-cd ~/ILSVRC/Data/CLS-LOC/resized_output
-tar -zcvf imagenet_80.tar.gz 80
-tar -zcvf imagenet_160.tar.gz 160
-tar -zcvf imagenet_320.tar.gz 320
-tar -zcvf imagenet_320.tar.gz 375
+cd ~/
 
-# Move them to EFS
-mv ~/.kaggle/competitions/imagenet-object-localization-challenge/imagenet_object_localization.tar.gz ~/efs_mount_point
-mv ~/ILSVRC/Data/CLS-LOC/resized_output/imagenet_80.tar.gz ~/efs_mount_point
-mv ~/ILSVRC/Data/CLS-LOC/resized_output/imagenet_160.tar.gz ~/efs_mount_point
-mv ~/ILSVRC/Data/CLS-LOC/resized_output/imagenet_320.tar.gz ~/efs_mount_point
-mv ~/ILSVRC/Data/CLS-LOC/resized_output/imagenet_375.tar.gz ~/efs_mount_point
+# Resize, tar, move to efs
+python resize_images.py 80 $imagenet_dir "resized_output"
+tar -zcvf $output_dir/imagenet_80.tar.gz $output_dir/80
+mv $output_dir/imagenet_80.tar.gz ~/efs_mount_point
+
+python resize_images.py 160 $imagenet_dir "resized_output"
+tar -zcvf $output_dir/imagenet_160.tar.gz $output_dir/160
+mv $output_dir/imagenet_160.tar.gz ~/efs_mount_point
+
+python resize_images.py 320 $imagenet_dir "resized_output"
+tar -zcvf $output_dir/imagenet_320.tar.gz $output_dir/320
+mv $output_dir/imagenet_320.tar.gz ~/efs_mount_point
+
+python resize_images.py 375 $imagenet_dir "resized_output"
+tar -zcvf $output_dir/imagenet_375.tar.gz $output_dir/375
+mv $output_dir/imagenet_375.tar.gz ~/efs_mount_point

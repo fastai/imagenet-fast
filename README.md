@@ -5,15 +5,13 @@
 3. Save weights and loss
 
 ### AWS
-AWS code located in python_scripts/aws_setup.py
+Check README in AWS directory for instructions on...
+1. Creating Spot instances
+2. Downloading and formatting imagenet
+3. Running CIFAR10 on an instance
 
-To setup a new VPC with EFS and EBS volumes: python_scripts/end2end_create_all.ipynb
+### FP16
+1. For testing fast.ai model compatability with single precision floating point
 
-To create new spot instance and mount EFS: python_scripts/end2end_demo.ipynb
-
-
-### Download and resize imagenet to EFS
-1. Setup Instance - python_scripts/resize-imagenet-instance.ipynb
-2. SSH into instance
-3. Follow steps in python_scripts/upload_scripts/imagenet_formatting.py
-4. You'll need to resize images manually with python_scripts/upload_scripts/resize-images.ipynb
+### cifar10/imagenet
+Training coming soon...

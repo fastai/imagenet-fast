@@ -15,10 +15,18 @@ case $key in
     shift # past argument
     shift # past value
     ;;
+    -dir|--directory)
+    DIRECTORY="$2"
+    shift # past argument
+    shift # past value
+    ;;
 esac
 done
 
-DIRECTORY="ebs_mount_point"
+
+if [[ -z ${DIRECTORY+x} ]]; then
+    DIRECTORY="ebs_mount_point"
+fi
 
 set -- "${POSITIONAL[@]}" # restore positional parameters
 
