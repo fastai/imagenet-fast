@@ -196,14 +196,14 @@ def create_spot_instance(name, launch_specs, spot_price='0.5'):
     print(f'Completed. SSH: ', get_ssh_command(instance))
     return instance
 
-
+from time import sleep
 def create_efs(name, vpc, performance_mode='generalPurpose'):
     sg_id, subnet_id = get_vpc_info(vpc)
     efsc = session.client('efs')
     efs_response = efsc.create_file_system(CreationToken=f'{name}', PerformanceMode=performance_mode)
     efs_id = efs_response['FileSystemId']
     efsc.create_tags(FileSystemId=efs_id, Tags=[{'Key': 'Name', 'Value': f'{name}'}])
-    
+    sleep(5)
     mount_target = efsc.create_mount_target(FileSystemId=efs_id,
                                               SubnetId=subnet_id,
                                               SecurityGroups=[sg_id])
@@ -229,14 +229,15 @@ def attach_volume(instance, volume_tag, device='/dev/xvdf'):
     # TODO: need to make sure ebs is formatted correctly inside the instance
     return instance
 
-def create_volume(name, size=120, volume_type='gp2'):
+def create_volume(name, az, size=120, volume_type='gp2'):
     tag_specs = [{
         'Tags': [{
             'Key': 'Name',
             'Value': f'{name}'
         }]
     }]
-    volume = ec2.create_volume(Size=size, VolumeType=volume_type, TagSpecifications=tag_specs)
+    volume = ec2.create_volume(Size=size, VolumeType=volume_type, TagSpecifications=tag_specs,
+                              AvailabilityZone=az)
     return volume
     
 
