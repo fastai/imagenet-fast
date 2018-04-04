@@ -11,6 +11,5 @@ echo "Activated fastai conda"
 python ~/cifar10/cifar10.py
 echo "Ran cifar10 script"
 
-# on demand instance
-
-# halt -p now
+# sudo halt
+# sudo shutdown -h now
