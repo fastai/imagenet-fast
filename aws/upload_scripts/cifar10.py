@@ -1,6 +1,7 @@
 from fastai import io
 import tarfile
 import shutil
+from pathlib import Path
 
 from time import gmtime, strftime
 from fastai.conv_learner import *
@@ -17,8 +18,8 @@ def untar_file(file_path, save_path):
         os.remove(file_path)
 
 def get_cifar():
-    if os.path.exists('~/efs_mount_point/cifar10.tgz'):
-        shutil.copy2('~/efs_mount_point/cifar10.tgz', 'data/cifar10.tgz')
+    if os.path.exists(Path.home()/'efs_mount_point/cifar10.tgz'):
+        shutil.copy2(Path.home()/'efs_mount_point/cifar10.tgz', 'data/cifar10.tgz')
     else:
         cifar_url = 'http://files.fast.ai/data/cifar10.tgz' # faster download
         # cifar_url = 'http://pjreddie.com/media/files/cifar.tgz'

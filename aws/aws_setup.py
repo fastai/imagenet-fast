@@ -126,19 +126,20 @@ def create_instance(name, launch_specs):
     return instance
 
 
-def wait_on_fullfillment(req_status):
-    while req_status['State'] != 'active':
+def wait_on_fullfillment(req):
+    while req['State'] != 'active':
         print('Waiting on spot fullfillment...')
         time.sleep(5)
-        reqs = ec2c.describe_spot_instance_requests(Filters=[{'Name': 'spot-instance-request-id', 'Values': [req_status['SpotInstanceRequestId']]}])
+        reqs = ec2c.describe_spot_instance_requests(Filters=[{'Name': 'spot-instance-request-id', 'Values': [req['SpotInstanceRequestId']]}])
         req = reqs['SpotInstanceRequests'][0]
         req_status = req['Status']
-        if req_status not in ['pending-evaluation', 'pending-fullfillment', 'fulfilled']:
+        if req_status['Code'] not in ['pending-evaluation', 'pending-fullfillment', 'fulfilled']:
             print('Spot instance request failed:', req_status['Message'])
             print('Cancelling request. Please try again or use on demand.')
             ec2c.cancel_spot_instance_requests(SpotInstanceRequestIds=[req['SpotInstanceRequestId']])
+            print(req)
             return None
-    instance_id = req_status['InstanceId']
+    instance_id = req['InstanceId']
     print('Fullfillment completed. InstanceId:', instance_id)
     return instance_id
     
@@ -216,6 +217,7 @@ def get_efs_address(name):
         fs_id = target[0]['FileSystemId']
         region = session.region_name
         return f'{fs_id}.efs.{region}.amazonaws.com'
+    print(f'Could not find address with name: {name}. Here are existing addresses:', file_systems)
 
 def attach_volume(instance, volume_tag, device='/dev/xvdf'):
     volumes = list(ec2.volumes.filter(Filters=[{'Name': 'tag-value', 'Values': [volume_tag]}]))
@@ -283,16 +285,14 @@ class TmuxSession:
     def __init__(self, client, name):
         self.client = client
         self.name = name
-        out, _ = attach()
-        if "can't find session" in out:
-            run_command(client, f'tmux new-session -s {name} -n w0 -d')
-        else:
-            print('Existing session found. Attaching to', name)
+        out, _ = run_command(client, f'tmux new-session -s {name} -n w0 -d')
+        if out and 'duplicate session' in out:
+            self.attach()
         self.windows = ['w0']
         
     def attach(self):
-        return run_command(client, f'tmux a -t {self.name}')
+        return run_command(self.client, f'tmux a -t {self.name}')
         
     def run_cmd(self, cmd):
-        return run_command(client, f'tmux send-keys -t {self.name} "{cmd}" Enter')
+        return run_command(self.client, f'tmux send-keys -t {self.name} "{cmd}" Enter')
         
