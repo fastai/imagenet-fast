@@ -133,7 +133,7 @@ def wait_on_fullfillment(req):
         reqs = ec2c.describe_spot_instance_requests(Filters=[{'Name': 'spot-instance-request-id', 'Values': [req['SpotInstanceRequestId']]}])
         req = reqs['SpotInstanceRequests'][0]
         req_status = req['Status']
-        if req_status['Code'] not in ['pending-evaluation', 'pending-fullfillment', 'fulfilled']:
+        if req_status['Code'] not in ['pending-evaluation', 'pending-fulfillment', 'fulfilled']:
             print('Spot instance request failed:', req_status['Message'])
             print('Cancelling request. Please try again or use on demand.')
             ec2c.cancel_spot_instance_requests(SpotInstanceRequestIds=[req['SpotInstanceRequestId']])
@@ -174,7 +174,7 @@ class LaunchSpecs:
                 'Ebs': {
                     # Volume size must be greater than snapshot size of 80
                     'VolumeSize': self.volume_size, 
-                    'DeleteOnTermination': True,
+                    'DeleteOnTermination': False,
                     'VolumeType': self.volume_type
                 }
             }]
@@ -286,14 +286,31 @@ class TmuxSession:
     def __init__(self, client, name):
         self.client = client
         self.name = name
-        out, _ = run_command(client, f'tmux new-session -s {name} -n w0 -d')
+        out, _ = run_command(client, f'tmux new-session -s {name} -n 0 -d')
         if out and 'duplicate session' in out:
             self.attach()
-        self.windows = ['w0']
+        self.windows = [f'{self.name}:0']
         
     def attach(self):
         return run_command(self.client, f'tmux a -t {self.name}')
-        
+    
     def run_cmd(self, cmd):
-        return run_command(self.client, f'tmux send-keys -t {self.name} "{cmd}" Enter')
+        return self.run_command(cmd)
+
+    def run_command(self, cmd, window_id=0):
+        num_windows = len(self.windows)
+        if window_id >= num_windows:
+            print('Window does not exist. Creating new one at index:', num_windows)
+            window_id = self.new_window()
+        window_name = self.windows[window_id]
+        return run_command(self.client, f'tmux send-keys -t {window_name} "{cmd}" Enter')
         
+    def close(self):
+        return run_command(self.client, f'tmux kill-session -t {self.name}')
+
+    def new_window(self):
+        window_id = len(self.windows)
+        self.windows.append(f'{self.name}:{window_id}')
+        run_command(self.client, f'tmux new-window -t {self.name} -n {window_id}')
+        print('Created new window. Id:', window_id)
+        return window_id
