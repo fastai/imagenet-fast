@@ -14,13 +14,14 @@ import torch.utils.data
 import torch.utils.data.distributed
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
-import torchvision.models as models
+import models
 from distributed import DistributedDataParallel as DDP
 from fp16util import network_to_half, set_grad, copy_in_params
 
 model_names = sorted(name for name in models.__dict__
                      if name.islower() and not name.startswith("__")
                      and callable(models.__dict__[name]))
+#print(model_names)
 
 parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')
 parser.add_argument('data', metavar='DIR',
@@ -248,9 +249,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
         i += 1
 
         if args.prof:
-            if i > 100:
-                print(time.time()-end)
-                break
+            if i > 200: break
         # measure data loading time
         data_time.update(time.time() - end)
 

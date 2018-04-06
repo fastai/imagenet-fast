@@ -67,7 +67,7 @@ class DistributedDataParallel(Module):
             
         for param in list(self.module.parameters()):
             def allreduce_hook(*unused):
-                param._execution_engine.queue_callback(allreduce_params)
+                torch.autograd.Variable._execution_engine.queue_callback(allreduce_params)
             if param.requires_grad:
                 param.register_hook(allreduce_hook)
 
