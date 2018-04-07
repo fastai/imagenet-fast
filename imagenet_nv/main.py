@@ -41,8 +41,7 @@ parser.add_argument('-b', '--batch-size', default=256, type=int,
                     metavar='N', help='mini-batch size (default: 256)')
 parser.add_argument('--lr', '--learning-rate', default=0.1, type=float,
                     metavar='LR', help='initial learning rate')
-parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
-                    help='momentum')
+parser.add_argument('--momentum', default=0.9, type=float, metavar='M', help='momentum')
 parser.add_argument('--weight-decay', '--wd', default=1e-4, type=float,
                     metavar='W', help='weight decay (default: 1e-4)')
 parser.add_argument('--print-freq', '-p', default=10, type=int,
@@ -51,20 +50,17 @@ parser.add_argument('--resume', default='', type=str, metavar='PATH',
                     help='path to latest checkpoint (default: none)')
 parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true',
                     help='evaluate model on validation set')
-parser.add_argument('--pretrained', dest='pretrained', action='store_true',
-                    help='use pre-trained model')
-
+parser.add_argument('--pretrained', dest='pretrained', action='store_true', help='use pre-trained model')
 parser.add_argument('--fp16', action='store_true', help='Run model fp16 mode.')
-parser.add_argument('--sz', default=224, type=int, help='Size of transformed image.')
+parser.add_argument('--sz',       default=224, type=int, help='Size of transformed image.')
+parser.add_argument('--decay-int', default=30, type=int, help='Decay LR by 10 every decay-int epochs')
 parser.add_argument('--loss-scale', type=float, default=1,
                     help='Loss scaling, positive power of 2 values can improve fp16 convergence.')
-parser.add_argument('--prof', dest='prof', action='store_true',
-                    help='Only run 10 iterations for profiling.')
+parser.add_argument('--prof', dest='prof', action='store_true', help='Only run a few iters for profiling.')
 
 parser.add_argument('--dist-url', default='file://sync.file', type=str,
                     help='url used to set up distributed training')
-parser.add_argument('--dist-backend', default='nccl', type=str,
-                    help='distributed backend')
+parser.add_argument('--dist-backend', default='nccl', type=str, help='distributed backend')
 
 parser.add_argument('--world-size', default=1, type=int,
                     help='Number of GPUs to use. Can either be manually set ' +
@@ -395,8 +391,8 @@ class AverageMeter(object):
 
 
 def adjust_learning_rate(optimizer, epoch):
-    """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
-    lr = args.lr * (0.1 ** (epoch // 30))
+    """Sets the learning rate to the initial LR decayed by 10 every few epochs"""
+    lr = args.lr * (0.1 ** (epoch // args.decay_int))
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
 
