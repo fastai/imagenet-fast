@@ -122,7 +122,6 @@ def create_instance(name, launch_specs):
     print('Rebooting...')
     instance.reboot()
     instance.wait_until_running()
-    print(f'Completed. SSH: ', get_ssh_command(instance))
     return instance
 
 
@@ -148,13 +147,14 @@ def get_spot_prices():
     return {h['InstanceType']:h['SpotPrice'] for h in hist}
 
 class LaunchSpecs:
-    def __init__(self, vpc, instance_type='t2.micro'):
+    def __init__(self, vpc, instance_type='t2.micro', volume_size=300, delete_ebs=True):
         self.ami = get_ami()
         self.sg_id, self.subnet_id = get_vpc_info(vpc)
         self.instance_type = instance_type
         self.device = '/dev/sda1'
-        self.volume_size = 100
+        self.volume_size = volume_size
         self.volume_type = 'gp2'
+        self.delete_ebs = delete_ebs
         self.vpc_tagname = list(filter(lambda i: i['Key'] == 'Name', vpc.tags))[0]['Value']
         self.keypair_name = f'aws-key-{self.vpc_tagname}'
 
@@ -174,15 +174,18 @@ class LaunchSpecs:
                 'Ebs': {
                     # Volume size must be greater than snapshot size of 80
                     'VolumeSize': self.volume_size, 
-                    'DeleteOnTermination': False,
+                    'DeleteOnTermination': self.delete_ebs,
                     'VolumeType': self.volume_type
                 }
             }]
         }
         return launch_specification
     
-def create_spot_instance(name, launch_specs, spot_price='0.5'):
-    spot_requests = ec2c.request_spot_instances(SpotPrice=spot_price, LaunchSpecification=launch_specs)
+def create_spot_instance(name, launch_specs, spot_price=None):
+    if spot_price is None:
+        spot_requests = ec2c.request_spot_instances(LaunchSpecification=launch_specs)    
+    else:
+        spot_requests = ec2c.request_spot_instances(SpotPrice=spot_price, LaunchSpecification=launch_specs)
     spot_request = spot_requests['SpotInstanceRequests'][0]
     instance_id = wait_on_fullfillment(spot_request)
     if not instance_id:
@@ -293,9 +296,6 @@ class TmuxSession:
         
     def attach(self):
         return run_command(self.client, f'tmux a -t {self.name}')
-    
-    def run_cmd(self, cmd):
-        return self.run_command(cmd)
 
     def run_command(self, cmd, window_id=0):
         num_windows = len(self.windows)
@@ -314,3 +314,7 @@ class TmuxSession:
         run_command(self.client, f'tmux new-window -t {self.name} -n {window_id}')
         print('Created new window. Id:', window_id)
         return window_id
+
+    def get_tmux_command(self, window_id=0):
+        if window_id >= len(self.windows): print('Could not find window')
+        return f'tmux a -t {self.name} select-window -t {window_id}'
