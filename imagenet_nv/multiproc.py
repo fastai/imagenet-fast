@@ -20,9 +20,9 @@ for i in range(world_size):
         argslist.append('--rank')
         argslist.append(str(i))
     stdout = None if i == 0 else open("GPU_"+str(i)+".log", "w")
-    print(argslist)
+    #print(argslist)
     p = subprocess.Popen([str(sys.executable)]+argslist, stdout=stdout)
     workers.append(p)
 
-for p in workers:
-    p.wait()
+for p in workers: p.wait()
+

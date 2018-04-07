@@ -52,6 +52,7 @@ parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true',
                     help='evaluate model on validation set')
 parser.add_argument('--pretrained', dest='pretrained', action='store_true', help='use pre-trained model')
 parser.add_argument('--fp16', action='store_true', help='Run model fp16 mode.')
+parser.add_argument('--dp', action='store_true', help='Run model fp16 mode.')
 parser.add_argument('--sz',       default=224, type=int, help='Size of transformed image.')
 parser.add_argument('--decay-int', default=30, type=int, help='Decay LR by 10 every decay-int epochs')
 parser.add_argument('--loss-scale', type=float, default=1,
@@ -80,12 +81,8 @@ def main():
     args.gpu = 0
     if args.distributed:
         args.gpu = args.rank % torch.cuda.device_count()
-        
-
-    if args.distributed:
         torch.cuda.set_device(args.gpu)
-        dist.init_process_group(backend=args.dist_backend, init_method=args.dist_url,
-                                world_size=args.world_size)
+        dist.init_process_group(backend=args.dist_backend, init_method=args.dist_url, world_size=args.world_size)
 
     if args.fp16:
         assert torch.backends.cudnn.enabled, "fp16 mode requires cudnn backend to be enabled."
@@ -99,25 +96,25 @@ def main():
         model = models.__dict__[args.arch]()
 
     model = model.cuda()
-    if args.fp16:
-        model = network_to_half(model)
+    n_dev = torch.cuda.device_count()
+    if args.fp16: model = network_to_half(model)
     if args.distributed:
         model = DDP(model)
+        #args.lr *= n_dev
+    elif args.dp:
+        model = nn.DataParallel(model)
+        args.batch_size *= n_dev
+        #args.lr *= n_dev
 
     global param_copy
     if args.fp16:
         param_copy = [param.clone().type(torch.cuda.FloatTensor).detach() for param in model.parameters()]
-        for param in param_copy:
-            param.requires_grad = True
-    else:
-        param_copy = list(model.parameters())
+        for param in param_copy: param.requires_grad = True
+    else: param_copy = list(model.parameters())
 
     # define loss function (criterion) and optimizer
     criterion = nn.CrossEntropyLoss().cuda()
-
-    optimizer = torch.optim.SGD(param_copy, args.lr,
-                                momentum=args.momentum,
-                                weight_decay=args.weight_decay)
+    optimizer = torch.optim.SGD(param_copy, args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
 
     # optionally resume from a checkpoint
     if args.resume:
@@ -130,14 +127,12 @@ def main():
             optimizer.load_state_dict(checkpoint['optimizer'])
             print("=> loaded checkpoint '{}' (epoch {})"
                   .format(args.resume, checkpoint['epoch']))
-        else:
-            print("=> no checkpoint found at '{}'".format(args.resume))
+        else: print("=> no checkpoint found at '{}'".format(args.resume))
 
     # Data loading code
     traindir = os.path.join(args.data, 'train')
     valdir = os.path.join(args.data, 'val')
-    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                     std=[0.229, 0.224, 0.225])
+    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 
     train_dataset = datasets.ImageFolder(
         traindir,
@@ -148,10 +143,8 @@ def main():
             normalize,
         ]))
 
-    if args.distributed:
-        train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
-    else:
-        train_sampler = None
+    train_sampler = (torch.utils.data.distributed.DistributedSampler(train_dataset)
+                     if args.distributed else None)
 
     train_loader = torch.utils.data.DataLoader(
         train_dataset, batch_size=args.batch_size, shuffle=(train_sampler is None),
@@ -172,14 +165,12 @@ def main():
         return
 
     for epoch in range(args.start_epoch, args.epochs):
-        if args.distributed:
-            train_sampler.set_epoch(epoch)
+        if args.distributed: train_sampler.set_epoch(epoch)
         adjust_learning_rate(optimizer, epoch)
 
         # train for one epoch
         train(train_loader, model, criterion, optimizer, epoch)
-        if args.prof:
-            break
+        if args.prof: break
         # evaluate on validation set
         prec1 = validate(val_loader, model, criterion)
 
@@ -203,10 +194,11 @@ def to_python_float(t):
         return t[0]
 
 class data_prefetcher():
-    def __init__(self, loader):
-        self.loader = iter(loader)
-        self.stream = torch.cuda.Stream()
-        self.preload()
+    def __init__(self, loader, prefetch=True):
+        self.loader,self.prefetch = iter(loader),prefetch
+        if prefetch:
+            self.stream = torch.cuda.Stream()
+            self.preload()
 
     def preload(self):
         try:
@@ -220,6 +212,10 @@ class data_prefetcher():
             self.next_target = self.next_target.cuda(async=True)
 
     def next(self):
+        if not self.prefetch:
+            input,target = next(self.loader)
+            return input.cuda(async=True),target.cuda(async=True)
+
         torch.cuda.current_stream().wait_stream(self.stream)
         input = self.next_input
         target = self.next_target
@@ -238,7 +234,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
     model.train()
     end = time.time()
 
-    prefetcher = data_prefetcher(train_loader)
+    prefetcher = data_prefetcher(train_loader, prefetch=True)
     input, target = prefetcher.next()
     i = -1
     while input is not None:

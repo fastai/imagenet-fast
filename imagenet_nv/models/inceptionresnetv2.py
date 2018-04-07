@@ -1,12 +1,8 @@
 import torch
 import torch.nn as nn
-import torch.utils.model_zoo as model_zoo
+from .layers import *
 import os
 import sys
-
-model_urls = {
-    'imagenet': 'http://webia.lip6.fr/~cadene/Downloads/inceptionresnetv2-d579a627.pth'
-}
 
 class BasicConv2d(nn.Module):
 
@@ -199,7 +195,7 @@ class Block8(nn.Module):
 
 class InceptionResnetV2(nn.Module):
 
-    def __init__(self, num_classes=1001):
+    def __init__(self, num_classes=1001, use_concat=False):
         super(InceptionResnetV2, self).__init__()
         self.conv2d_1a = BasicConv2d(3, 32, kernel_size=3, stride=2)
         self.conv2d_2a = BasicConv2d(32, 32, kernel_size=3, stride=1)
@@ -258,8 +254,14 @@ class InceptionResnetV2(nn.Module):
         )
         self.block8 = Block8(noReLU=True)
         self.conv2d_7b = BasicConv2d(2080, 1536, kernel_size=1, stride=1)
-        self.avgpool_1a = nn.AdaptiveAvgPool2d((1,1))
-        self.classif = nn.Linear(1536, num_classes)
+        if use_concat:
+            self.avgpool_1a = AdaptiveConcatPool2d()
+            mult = 2
+        else:
+            self.avgpool_1a = nn.AdaptiveAvgPool2d(1)
+            mult = 1
+        #self.avgpool_1a = nn.AdaptiveAvgPool2d((1,1))
+        self.classif = nn.Linear(1536*mult, num_classes)
 
     def forward(self, x):
         x = self.conv2d_1a(x)
@@ -279,20 +281,11 @@ class InceptionResnetV2(nn.Module):
         x = self.conv2d_7b(x)
         x = self.avgpool_1a(x)
         x = x.view(x.size(0), -1)
-        x = self.classif(x) 
+        x = self.classif(x)
         return x
 
-def inceptionresnetv2(pretrained=True):
-    r"""InceptionResnetV2 model architecture from the
-    `"InceptionV4, Inception-ResNet..." <https://arxiv.org/abs/1602.07261>`_ paper.
-
-    Args:
-        pretrained ('string'): If True, returns a model pre-trained on ImageNet
-    """
-    model = InceptionResnetV2()
-    if pretrained:
-        model.load_state_dict(model_zoo.load_url(model_urls['imagenet']))
-    return model
+def inceptionresnetv2(): return InceptionResnetV2()
+def inceptionresnetv2_conc(): return InceptionResnetV2(use_concat=True)
 
 
 ######################################################################

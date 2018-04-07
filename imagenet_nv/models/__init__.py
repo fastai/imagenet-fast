@@ -1,4 +1,5 @@
 from .resnet import *
+from .dpn import *
 from .se_resnet import *
 from .pre_resnet import *
 from .resnext import *

@@ -260,7 +260,7 @@ class InceptionV4(nn.Module):
         return x
 
 
-def inceptionv4(pretrained=True):
+def inceptionv4(pretrained=False):
     r"""InceptionV4 model architecture from the
     `"Inception-v4, Inception-ResNet..." <https://arxiv.org/abs/1602.07261>`_ paper.
 
