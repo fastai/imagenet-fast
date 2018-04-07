@@ -125,7 +125,7 @@ def create_instance(name, launch_specs):
     return instance
 
 
-def wait_on_fullfillment(req):
+def wait_on_fulfillment(req):
     while req['State'] != 'active':
         print('Waiting on spot fullfillment...')
         time.sleep(5)
@@ -139,7 +139,7 @@ def wait_on_fullfillment(req):
             print(req)
             return None
     instance_id = req['InstanceId']
-    print('Fullfillment completed. InstanceId:', instance_id)
+    print('Fulfillment completed. InstanceId:', instance_id)
     return instance_id
     
 def get_spot_prices():
@@ -187,7 +187,7 @@ def create_spot_instance(name, launch_specs, spot_price=None):
     else:
         spot_requests = ec2c.request_spot_instances(SpotPrice=spot_price, LaunchSpecification=launch_specs)
     spot_request = spot_requests['SpotInstanceRequests'][0]
-    instance_id = wait_on_fullfillment(spot_request)
+    instance_id = wait_on_fulfillment(spot_request)
     if not instance_id:
         return
 
