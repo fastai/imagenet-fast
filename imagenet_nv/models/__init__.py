@@ -1,4 +1,5 @@
 from .resnet import *
+from .se_resnet import *
 from .pre_resnet import *
 from .resnext import *
 from .resnext_101_32x4d import *
