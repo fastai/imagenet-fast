@@ -1,7 +1,6 @@
 #!/bin/bash
 cd ~/fastai
-git fetch origin
-git checkout origin/master
+git pull
 
 cd ~/cifar10
 ln -rs ~/fastai/fastai ~/cifar10/fastai
