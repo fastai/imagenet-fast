@@ -10,10 +10,8 @@ Inside the instance, run: `tmux a -t sess`
 AWS wrapper functions located in aws/aws_setup.py
 
 To setup a new VPC with EFS and EBS volumes: python_scripts/end2end_create_all.ipynb
-
 To create new spot instance and mount EFS: python_scripts/end2end_demo.ipynb
 
-### Running cifar10
-1. Run `run_cifar10.ipynb`
-2. This will upload `run_cifar10.sh` and `cifar10.py` to a new ec2 instance
-3. Edit `cifar10` to change training parameters
+### Running Imagenet
+1. `python run_script.py -p myproject -ami ami-b67711ce -r $PWD/upload_scripts/train_imagenet.sh`
+2. This should launch an instance. SSH into the box, run tmux -a. You should start to see output

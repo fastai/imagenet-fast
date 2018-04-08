@@ -89,7 +89,8 @@ def create_vpc(name):
     
     return vpc
 
-def get_ami(region=None):
+def get_ami(region=None, imagenet=False):
+    if imagenet: return 'ami-b67711ce' # Private AMI with imagenet loaded
     if region is None: region = session.region_name
     region2ami = {
         'us-west-2': 'ami-8c4288f4',
@@ -147,8 +148,8 @@ def get_spot_prices():
     return {h['InstanceType']:h['SpotPrice'] for h in hist}
 
 class LaunchSpecs:
-    def __init__(self, vpc, instance_type='t2.micro', volume_size=300, delete_ebs=True):
-        self.ami = get_ami()
+    def __init__(self, vpc, instance_type='t2.micro', volume_size=300, delete_ebs=True, ami=None):
+        self.ami = ami if ami else get_ami()
         self.sg_id, self.subnet_id = get_vpc_info(vpc)
         self.instance_type = instance_type
         self.device = '/dev/sda1'
