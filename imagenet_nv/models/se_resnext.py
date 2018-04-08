@@ -26,14 +26,15 @@ class Bottleneck(nn.Module):
         self.downsample = downsample
         self.stride = stride
 
-        if planes == 64:
-            self.globalAvgPool = nn.AvgPool2d(56, stride=1)
-        elif planes == 128:
-            self.globalAvgPool = nn.AvgPool2d(28, stride=1)
-        elif planes == 256:
-            self.globalAvgPool = nn.AvgPool2d(14, stride=1)
-        elif planes == 512:
-            self.globalAvgPool = nn.AvgPool2d(7, stride=1)
+        #if planes == 64:
+            #self.globalAvgPool = nn.AvgPool2d(56, stride=1)
+        #elif planes == 128:
+            #self.globalAvgPool = nn.AvgPool2d(28, stride=1)
+        #elif planes == 256:
+            #self.globalAvgPool = nn.AvgPool2d(14, stride=1)
+        #elif planes == 512:
+            #self.globalAvgPool = nn.AvgPool2d(7, stride=1)
+        self.globalAvgPool = nn.AdaptiveAvgPool2d(1)
         self.fc1 = nn.Linear(in_features=planes * 4, out_features=round(planes / 4))
         self.fc2 = nn.Linear(in_features=round(planes / 4), out_features=planes * 4)
         self.sigmoid = nn.Sigmoid()
@@ -85,7 +86,7 @@ class SE_ResNeXt(nn.Module):
         self.layer2 = self._make_layer(block, 128, layers[1], num_group, stride=2)
         self.layer3 = self._make_layer(block, 256, layers[2], num_group, stride=2)
         self.layer4 = self._make_layer(block, 512, layers[3], num_group, stride=2)
-        self.avgpool = nn.AvgPool2d(7, stride=1)
+        self.avgpool = nn.AdaptiveAvgPool2d(1)
         self.fc = nn.Linear(512 * block.expansion, num_classes)
 
         for m in self.modules():

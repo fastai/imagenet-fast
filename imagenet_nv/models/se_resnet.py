@@ -25,14 +25,15 @@ class BasicBlock(nn.Module):
         self.downsample = downsample
         self.stride = stride
 
-        if planes == 64:
-            self.globalAvgPool = nn.AvgPool2d(56, stride=1)
-        elif planes == 128:
-            self.globalAvgPool = nn.AvgPool2d(28, stride=1)
-        elif planes == 256:
-            self.globalAvgPool = nn.AvgPool2d(14, stride=1)
-        elif planes == 512:
-            self.globalAvgPool = nn.AvgPool2d(7, stride=1)
+        #if planes == 64:
+            #self.globalAvgPool = nn.AvgPool2d(56, stride=1)
+        #elif planes == 128:
+            #self.globalAvgPool = nn.AvgPool2d(28, stride=1)
+        #elif planes == 256:
+            #self.globalAvgPool = nn.AvgPool2d(14, stride=1)
+        #elif planes == 512:
+            #self.globalAvgPool = nn.AvgPool2d(7, stride=1)
+        self.globalAvgPool = nn.AdaptiveAvgPool2d(1)
         self.fc1 = nn.Linear(in_features=planes, out_features=round(planes / 16))
         self.fc2 = nn.Linear(in_features=round(planes / 16), out_features=planes)
         self.sigmoid = nn.Sigmoid()
@@ -79,14 +80,15 @@ class Bottleneck(nn.Module):
         self.conv3 = nn.Conv2d(planes, planes * 4, kernel_size=1, bias=False)
         self.bn3 = nn.BatchNorm2d(planes * 4)
         self.relu = nn.ReLU(inplace=True)
-        if planes == 64:
-            self.globalAvgPool = nn.AvgPool2d(56, stride=1)
-        elif planes == 128:
-            self.globalAvgPool = nn.AvgPool2d(28, stride=1)
-        elif planes == 256:
-            self.globalAvgPool = nn.AvgPool2d(14, stride=1)
-        elif planes == 512:
-            self.globalAvgPool = nn.AvgPool2d(7, stride=1)
+        #if planes == 64:
+            #self.globalAvgPool = nn.AvgPool2d(56, stride=1)
+        #elif planes == 128:
+            #self.globalAvgPool = nn.AvgPool2d(28, stride=1)
+        #elif planes == 256:
+            #self.globalAvgPool = nn.AvgPool2d(14, stride=1)
+        #elif planes == 512:
+            #self.globalAvgPool = nn.AvgPool2d(7, stride=1)
+        self.globalAvgPool = nn.AdaptiveAvgPool2d(1)
         self.fc1 = nn.Linear(in_features=planes * 4, out_features=round(planes / 4))
         self.fc2 = nn.Linear(in_features=round(planes / 4), out_features=planes * 4)
         self.sigmoid = nn.Sigmoid()
@@ -144,7 +146,7 @@ class SENet(nn.Module):
             self.avgpool = AdaptiveConcatPool2d()
             mult = 2
         else:
-            self.avgpool = AdaptiveAvgPool2d(1)
+            self.avgpool = nn.AdaptiveAvgPool2d(1)
             mult = 1
         self.fc = nn.Linear(512 * block.expansion * mult, num_classes)
 
