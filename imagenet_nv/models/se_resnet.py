@@ -4,8 +4,7 @@ import math
 import torch.utils.model_zoo as model_zoo
 
 
-__all__ = ['SENet', 'se_resnet_18', 'se_resnet_34', 'se_resnet_50', 'se_resnet_101',
-           'se_resnet_152']
+__all__ = ['SENet', 'se_resnet_18', 'se_resnet_34', 'se_resnet_50', 'se_resnet_101', 'se_resnet_152', 'se_resnet_50_conc']
 
 def conv3x3(in_planes, out_planes, stride=1):
     """3x3 convolution with padding"""
