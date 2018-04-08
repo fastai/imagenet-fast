@@ -7,6 +7,7 @@ from fastai.transforms import *
 from fastai.dataset import *
 from fastai.fp16 import *
 from fastai.conv_learner import *
+from pathlib import *
 
 import torch
 from torch.autograd import Variable
@@ -32,6 +33,8 @@ model_names = sorted(name for name in models.__dict__
 parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')
 parser.add_argument('data', metavar='DIR',
                     help='path to dataset')
+parser.add_argument('--save-dir', type=str, default=Path.home()/'imagenet_training',
+                    help='Directory to save logs and models.')
 parser.add_argument('--arch', '-a', metavar='ARCH', default='resnet18',
                     choices=model_names,
                     help='model architecture: ' +
@@ -173,15 +176,33 @@ class ValLoggingCallback(Callback):
         self.f.write(time.strftime("%Y-%m-%dT%H:%M:%S")+"\t"+string+"\n")
 
 # Logging + saving models
-def log_data(name, log_dir):
-    if args.rank != 0: return None, None, None
-    callbacks = [
-        LoggingCallback(f'{log_dir}/{name}_log.txt'),
-        ValLoggingCallback(f'{log_dir}/{name}_val_log.txt')
-    ]
-    best_save_name = f'{name}_best_model'
-    cycle_save_name = f'{name}_cycle_weights'
-    return callbacks, best_save_name, cycle_save_name
+def save_args(name, save_dir):
+    if (args.rank != 0) or not args.save_dir: return {}
+
+    log_dir = f'{save_dir}/training_logs'
+    m_dir = f'{save_dir}/models'
+    tmp_dir = f'{save_dir}/tmp'
+    os.makedirs(log_dir, exist_ok=True)
+    os.makedirs(m_dir, exist_ok=True)
+    os.makedirs(tmp_dir, exist_ok=True)
+
+    m_dir_rel = os.path.relpath(m_dir, args.data)
+    return {
+        'best_save_name': f'{m_dir_rel}/{name}_best_model',
+        'cycle_save_name': f'{m_dir_rel}/{name}',
+        'tmp_name': os.path.relpath(tmp_dir, args.data),
+        'callbacks': [
+            LoggingCallback(f'{log_dir}/{name}_log.txt'),
+            ValLoggingCallback(f'{log_dir}/{name}_val_log.txt')
+        ]
+    }
+
+def save_sched(sched, save_dir):
+    if not save_dir: return
+    log_dir = f'{save_dir}/training_logs'
+    sched.save_path = log_dir
+    sched.plot_loss()
+    sched.plot_lr()
 
 # This is important for speed
 cudnn.benchmark = True
@@ -215,32 +236,44 @@ def main():
     if args.distributed:
         model = DDP(model)
         
-    
-    log_dir = f'{args.data}/training_logs'
-    if not os.path.exists(log_dir):
-        os.makedirs(log_dir)
         
-        
-    data, train_sampler = fast_loader(args.data, args.sz)
+    # 160
+    train_160 = True
+    if train_160:
+        data, train_sampler = fast_loader(f'{args.data}-160', 160)
+    else:
+        data, train_sampler = fast_loader(args.data, args.sz)
+
     learner = Learner.from_model_data(model, data)
     learner.crit = F.cross_entropy
     learner.metrics = [accuracy, top5]
     if args.fp16:
         learner.half()
         
-    cb, best_m, save_c = log_data('run1', log_dir)
-    learner.fit(args.lr,args.epochs, cycle_len=.005, 
-                best_save_name=best_m,
-                cycle_save_name=save_c, 
-                callbacks=cb,
+
+    # 160x160
+    if train_160:
+        sargs = save_args('first_run', args.save_dir+'/160')
+        learner.fit(args.lr,args.epochs, cycle_len=.005,
+                    train_sampler=train_sampler,
+                    wds=args.weight_decay,
+                    use_clr=(20,2),
+                    **sargs
+                )
+        save_sched(learner.sched, args.save_dir)
+        data, train_sampler = fast_loader(args.data, args.sz)
+        learner.set_data(data)
+
+
+    # Full size
+    sargs = save_args('first_run', args.save_dir)
+    learner.fit(args.lr,args.epochs, cycle_len=.005,
                 train_sampler=train_sampler,
                 wds=args.weight_decay,
-                use_clr=(20,2)
+                use_clr=(20,2),
+                **sargs
                )
-    # save loss and learning rate graphs
-    learner.sched.save_path = log_dir
-    learner.sched.plot_loss()
-    learner.sched.plot_lr()
+    save_sched(learner.sched, args.save_dir)
     print('Finished!')
     
 main()

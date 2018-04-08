@@ -51,8 +51,6 @@ tmux send-keys -t imagenet:2 "ls ~/data/imagenet/val" Enter
 
 cd ~/fastai
 git pull
-git checkout fp16
-
 conda activate fastai
 conda env update
 ln -s ~/fastai/fastai ~/anaconda3/envs/fastai/lib/python3.6/site-packages
@@ -73,9 +71,11 @@ rm ~/data/imagenet/val/meta.pkl
 cd ~/git/imagenet-fast/imagenet_nv
 git pull
 
-# Run fastai_imagenet
-time python $MULTI fastai_imagenet.py $DATA_DIR $MARGS |& tee -a $SAVE_DIR/output.log
+# Run main.py
+time python $MULTI main.py $DATA_DIR $MARGS |& tee -a output.log
 
+mv *.log $SAVE_DIR
+mv *.tar $SAVE_DIR
 scp -o StrictHostKeyChecking=no -r $SAVE_DIR ubuntu@aws-m5.mine.nu:~/data/imagenet_training
 
 if [[ -n "$SHUTDOWN" ]]; then

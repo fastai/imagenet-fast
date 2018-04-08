@@ -47,15 +47,15 @@ def scale_to(x, ratio, targ): return max(math.floor(x*ratio), targ)
 
 def resize(targ, source_dir=None, resize_folder='resize'):
     if source_dir is None:
-        source_dir = Path.home()/'ILSVRC/Data/CLS-LOC'
+        source_dir = Path.home()/'data/imagenet'
     val_filenames, val_labels, val_all_labels = read_dirs(source_dir, 'val'); 
     print(f'Found {len(val_filenames)} validation images')
 
     train_filenames, train_labels, train_all_labels = read_dirs(source_dir, 'train'); len(train_filenames)
-    print(f'Found {len(train_filenames)} validation images')
+    print(f'Found {len(train_filenames)} training images')
 
-    resize_imgs(train_filenames, 80, source_dir, 'resized_output')
-    resize_imgs(val_filenames, 80, source_dir, 'resized_output')
+    resize_imgs(train_filenames, targ, source_dir, resize_folder)
+    resize_imgs(val_filenames, targ, source_dir, resize_folder)
 
 if __name__ == '__main__':
   fire.Fire(resize)
