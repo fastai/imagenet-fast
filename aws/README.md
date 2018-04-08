@@ -1,6 +1,6 @@
 # Run Instances on AWS
 
-### Downloading imagenet
+### Downloading ImageNet
 1. Open and run download_imagenet.ipynb `jupyter notebook`
 
 Note: You can observe the script output by SSH'ing into the ec2 instance. `get_ssh_command(instance)` should output the command . 
