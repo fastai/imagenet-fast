@@ -13,5 +13,5 @@ To setup a new VPC with EFS and EBS volumes: python_scripts/end2end_create_all.i
 To create new spot instance and mount EFS: python_scripts/end2end_demo.ipynb
 
 ### Running Imagenet
-1. `python run_script.py -p myproject -ami ami-b67711ce -r $PWD/upload_scripts/train_imagenet.sh`
+1. `python run_script.py -p myproject -t p3.2xlarge -ami ami-b67711ce -r $PWD/upload_scripts/train_imagenet.sh`
 2. This should launch an instance. SSH into the box, run tmux -a. You should start to see output

@@ -10,6 +10,11 @@ case $key in
     shift # past argument
     shift # past value
     ;;
+    -sh|--auto_shut)
+    SHUTDOWN="$2"
+    shift # past argument
+    shift # past value
+    ;;
 esac
 done
 
@@ -19,6 +24,13 @@ if [[ -z ${PROJECT+x} ]]; then
 fi
 TIME="(date +%s)"
 PROJECT=$PROJECT-"$(date +%s)"
+
+# Warm up imagenet files?
+tmux new-window -t imagenet -n 2 -d
+tmux send-keys -t imagenet:2 "ls ~/data/imagenet-160/train" Enter
+tmux send-keys -t imagenet:2 "ls ~/data/imagenet-160/val" Enter
+tmux send-keys -t imagenet:2 "ls ~/data/imagenet/train" Enter
+tmux send-keys -t imagenet:2 "ls ~/data/imagenet/val" Enter
 
 cd ~/fastai
 git pull
@@ -44,9 +56,9 @@ cd ~/git/imagenet-fast/imagenet_nv
 git pull
 
 # Run single gpu
-# python fastai.py ~/data/imagenet --arch resnext_50_32x4d -j 8 --epochs 1 -b 64 --fp16
+python fastai.py ~/data/imagenet --arch resnext_50_32x4d -j 8 --epochs 1 -b 64 --fp16
 # multi process
-python multiproc.py -m fastai.py $DATA_DIR --arch resnext_50_32x4d -j 8 --epochs 1 -b 64 --world-size 4 --fp16
+# python multiproc.py -m fastai.py $DATA_DIR --arch resnext_50_32x4d -j 8 --epochs 1 -b 64 --world-size 4 --fp16
 
 mkdir $PROJECT
 cp -r $DATA_DIR/models $PROJECT
@@ -58,5 +70,9 @@ cp $DATA_DIR_160/training_logs $PROJECT/imagenet-160
 scp -o StrictHostKeyChecking=no -r $PROJECT ubuntu@aws-m5.mine.nu:~/data/imagenet_training
 
 
-echo Done. Powering off now
-sudo shutdown --poweroff now
+if [[ -n "$SHUTDOWN" ]]; then
+    echo Done. Shutting instance down
+    sudo shutdown --poweroff now
+else
+    echo Done. Please remember to shut instance down when no longer needed.
+fi

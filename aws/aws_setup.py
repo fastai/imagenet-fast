@@ -318,4 +318,4 @@ class TmuxSession:
 
     def get_tmux_command(self, window_id=0):
         if window_id >= len(self.windows): print('Could not find window')
-        return f'tmux a -t {self.name} select-window -t {window_id}'
+        return f'tmux a -t {self.name}'
