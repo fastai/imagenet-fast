@@ -56,9 +56,9 @@ cd ~/git/imagenet-fast/imagenet_nv
 git pull
 
 # Run single gpu
-python fastai.py ~/data/imagenet --arch resnext_50_32x4d -j 8 --epochs 1 -b 64 --fp16
+python fastai_imagenet.py ~/data/imagenet --arch resnext_50_32x4d -j 8 --epochs 1 -b 64 --fp16
 # multi process
-# python multiproc.py -m fastai.py $DATA_DIR --arch resnext_50_32x4d -j 8 --epochs 1 -b 64 --world-size 4 --fp16
+# python multiproc.py -m fastai_imagenet.py $DATA_DIR --arch resnext_50_32x4d -j 8 --epochs 1 -b 64 --world-size 4 --fp16
 
 mkdir $PROJECT
 cp -r $DATA_DIR/models $PROJECT
