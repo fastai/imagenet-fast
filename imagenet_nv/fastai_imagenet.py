@@ -44,6 +44,8 @@ parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
                     help='number of data loading workers (default: 4)')
 parser.add_argument('--epochs', default=90, type=int, metavar='N',
                     help='number of total epochs to run')
+parser.add_argument('--cycle-len', default=1, type=float, metavar='N',
+                    help='Length of cycle to run')
 # parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
 #                     help='manual epoch number (useful on restarts)')
 parser.add_argument('-b', '--batch-size', default=256, type=int,
@@ -117,11 +119,9 @@ def fast_loader(data_path, size):
 class DataPrefetcher():
     def __init__(self, loader, stop_early=False):
         self.loader = loader
-        self.loaditer = iter(loader)
         self.dataset = loader.dataset
         self.stream = torch.cuda.Stream()
         self.stop_early = stop_early
-        self.preload()
 
     def __len__(self):
         return len(self.loader)
@@ -139,6 +139,7 @@ class DataPrefetcher():
 
     def __iter__(self):
         count = 0
+        self.loaditer = iter(loader)
         while self.next_input is not None:
             torch.cuda.current_stream().wait_stream(self.stream)
             input = self.next_input
@@ -152,14 +153,10 @@ class DataPrefetcher():
 # Taken from main.py topk accuracy
 def top5(output, target):
     """Computes the precision@k for the specified values of k"""
-    topk = 5
     batch_size = target.size(0)
-    _, pred = output.topk(topk, 1, True, True)
+    _, pred = output.topk(5, 1, True, True)
     pred = pred.t()
-    correct = pred.eq(target.view(1, -1).expand_as(pred))
-    res = []
-    correct_k = correct[:5].view(-1).float().sum(0, keepdim=True)
-    return correct_k.mul_(100.0 / batch_size)
+    return pred.eq(target.view(1, -1).expand_as(pred)).sum()/batch_size
 
 class ValLoggingCallback(Callback):
     def __init__(self, save_path):
