@@ -55,11 +55,11 @@ parser.add_argument('--weight-decay', '--wd', default=1e-4, type=float,
                     metavar='W', help='weight decay (default: 1e-4)')
 # parser.add_argument('--print-freq', '-p', default=10, type=int,
 #                     metavar='N', help='print frequency (default: 10)')
-parser.add_argument('--resume', default='', type=str, metavar='PATH',
-                    help='path to latest checkpoint (default: none)')
-parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true',
-                    help='evaluate model on validation set')
-parser.add_argument('--pretrained', dest='pretrained', action='store_true', help='use pre-trained model')
+# parser.add_argument('--resume', default='', type=str, metavar='PATH',
+#                     help='path to latest checkpoint (default: none)')
+# parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true',
+#                     help='evaluate model on validation set')
+# parser.add_argument('--pretrained', dest='pretrained', action='store_true', help='use pre-trained model')
 parser.add_argument('--fp16', action='store_true', help='Run model fp16 mode.')
 parser.add_argument('--sz',       default=224, type=int, help='Size of transformed image.')
 # parser.add_argument('--decay-int', default=30, type=int, help='Decay LR by 10 every decay-int epochs')
@@ -83,18 +83,17 @@ def fast_loader(data_path, size):
         RandomFlip(),
 #         RandomRotate(4),
 #         RandomLighting(0.05, 0.05),
-        RandomCrop(args.sz)
+        RandomCrop(size)
     ]
-    tfms = tfms_from_stats(imagenet_stats, size, aug_tfms=aug_tfms, pad=args.sz//8)
+    tfms = tfms_from_stats(imagenet_stats, size, aug_tfms=aug_tfms)
     data = ImageClassifierData.from_paths(data_path, val_name='val', tfms=tfms, bs=args.batch_size, num_workers=args.workers)
 
     if args.distributed:
         train_sampler = torch.utils.data.distributed.DistributedSampler(data.trn_dl)
     else:
         train_sampler = None
-        
-    #### AS: REMEMBER TO TEST TRAIN SAMPLER
-    #### should length of data prefetcher be the length of the sample?
+
+    # TODO: Need to test train_sampler on distributed machines
     
     # Use pytorch default data loader. 20% faster
     data.trn_dl = torch.utils.data.DataLoader(
@@ -180,17 +179,10 @@ def save_args(name, save_dir):
     if (args.rank != 0) or not args.save_dir: return {}
 
     log_dir = f'{save_dir}/training_logs'
-    m_dir = f'{save_dir}/models'
-    tmp_dir = f'{save_dir}/tmp'
     os.makedirs(log_dir, exist_ok=True)
-    os.makedirs(m_dir, exist_ok=True)
-    os.makedirs(tmp_dir, exist_ok=True)
-
-    m_dir_rel = os.path.relpath(m_dir, args.data)
     return {
-        'best_save_name': f'{m_dir_rel}/{name}_best_model',
-        'cycle_save_name': f'{m_dir_rel}/{name}',
-        'tmp_name': os.path.relpath(tmp_dir, args.data),
+        'best_save_name': f'{name}_best_model',
+        'cycle_save_name': f'{name}',
         'callbacks': [
             LoggingCallback(f'{log_dir}/{name}_log.txt'),
             ValLoggingCallback(f'{log_dir}/{name}_val_log.txt')
@@ -198,17 +190,23 @@ def save_args(name, save_dir):
     }
 
 def save_sched(sched, save_dir):
-    if not save_dir: return
+    if (args.rank != 0) or not args.save_dir: return {}
     log_dir = f'{save_dir}/training_logs'
     sched.save_path = log_dir
     sched.plot_loss()
     sched.plot_lr()
 
+def update_model_dir(learner, base_dir):
+    learner.tmp_path = f'{base_dir}/tmp'
+    os.makedirs(learner.tmp_path, exist_ok=True)
+    learner.models_path = f'{base_dir}/models'
+    os.makedirs(learner.models_path, exist_ok=True)
+    
 # This is important for speed
 cudnn.benchmark = True
 global args
 args = parser.parse_args()
-    
+
 
 def main():
     args.distributed = args.world_size > 1
@@ -237,10 +235,9 @@ def main():
         model = DDP(model)
         
         
-    # 160
-    train_160 = True
-    if train_160:
-        data, train_sampler = fast_loader(f'{args.data}-160', 160)
+    train_128 = True
+    if train_128:
+        data, train_sampler = fast_loader(f'{args.data}-160', 128)
     else:
         data, train_sampler = fast_loader(args.data, args.sz)
 
@@ -251,26 +248,31 @@ def main():
         learner.half()
         
 
-    # 160x160
-    if train_160:
-        sargs = save_args('first_run', args.save_dir+'/160')
+    # 128x128
+    if train_128:
+        save_dir = args.save_dir+'/128'
+        update_model_dir(learner, save_dir)
+        sargs = save_args('first_run_128', save_dir)
         learner.fit(args.lr,args.epochs, cycle_len=.005,
                     train_sampler=train_sampler,
                     wds=args.weight_decay,
                     use_clr=(20,2),
+                    loss_scale=args.loss_scale,
                     **sargs
                 )
-        save_sched(learner.sched, args.save_dir)
+        save_sched(learner.sched, save_dir)
         data, train_sampler = fast_loader(args.data, args.sz)
         learner.set_data(data)
 
 
     # Full size
+    update_model_dir(learner, args.save_dir)
     sargs = save_args('first_run', args.save_dir)
     learner.fit(args.lr,args.epochs, cycle_len=.005,
                 train_sampler=train_sampler,
                 wds=args.weight_decay,
                 use_clr=(20,2),
+                loss_scale=args.loss_scale,
                 **sargs
                )
     save_sched(learner.sched, args.save_dir)

@@ -43,7 +43,7 @@ def launch_instance(instance_name, launch_specs, itype):
         print('Cancelling request...')
         return
     if not instance:
-        itype = input("Instance creation error. Try again? spot/demand/cancel")
+        itype = input("Instance creation error. Try again? (spot/demand/cancel)\n")
         return launch_instance(instance_name, launch_specs, itype)
     return instance
 
@@ -52,20 +52,22 @@ def run_script(client):
         if args.run_script: print('Cannot run both run script and fastai at the same time. Ignoring run script')
         if not args.script_args: print('Must pass in script arguments to run fastai'); return 
         args.run_script = Path.cwd()/'upload_scripts/train_imagenet.sh'
-        args.script_args += f'-p {args.project_name}'
-    elif args.use_imagenet:
+        args.script_args += f' -p {args.project_name}'
+    elif args.use_nvidia:
         if args.run_script: print('Cannot run both run script and fastai at the same time. Ignoring run script')
         if not args.script_args: print('Must pass in script arguments to run fastai'); return
         args.run_script = Path.cwd()/'upload_scripts/train_nv.sh'
-        args.script_args += f'-p {args.project_name}'
+        args.script_args += f' -p {args.project_name}'
 
     tsess = TmuxSession(client, 'imagenet')
     script_loc = Path(args.run_script)
     script_loc = Path(script_loc.expanduser())
     upload_file(client, script_loc, script_loc.name)
-    tsess.run_command(f'bash {script_loc.name} {args.script_args}')
+    run_cmd = f'bash {script_loc.name} {args.script_args}'
+    tsess.run_command(run_cmd)
+    print('Running command:', run_cmd)
     tmux_cmd = tsess.get_tmux_command()
-    print(f'Running script in tmux.\nTmux: {tmux_cmd}')
+    print(f'Tmux: {tmux_cmd}')
     
 
 def main():
