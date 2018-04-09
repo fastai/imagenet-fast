@@ -38,8 +38,8 @@ fi
 if [[ -n "$MULTI" ]]; then
     MULTI="-m multiproc"
 fi
-TIME="(date +%s)"
-PROJECT=$PROJECT-"$(date +%s)"
+TIME="(date '+%Y-%m-%d-%H-%M-%S')"
+PROJECT=$PROJECT-$TIME
 
 echo 'Warming up imagenet'
 tmux new-window -t imagenet -n 2 -d

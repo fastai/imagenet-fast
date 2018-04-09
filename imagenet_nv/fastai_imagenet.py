@@ -61,11 +61,14 @@ parser.add_argument('--weight-decay', '--wd', default=1e-4, type=float,
 #                     help='evaluate model on validation set')
 # parser.add_argument('--pretrained', dest='pretrained', action='store_true', help='use pre-trained model')
 parser.add_argument('--fp16', action='store_true', help='Run model fp16 mode.')
+parser.add_argmuent('--use-tta', action='store_true', help='Run model with TTA at the end')
 parser.add_argument('--sz',       default=224, type=int, help='Size of transformed image.')
 # parser.add_argument('--decay-int', default=30, type=int, help='Decay LR by 10 every decay-int epochs')
+parser.add_argument('--use_clr', type=str, 
+                    help='div,pct,max_mom,min_mom. Pass in a string delimited by commas. Ex: "20,2,0.95,0.85"')
 parser.add_argument('--loss-scale', type=float, default=1,
                     help='Loss scaling, positive power of 2 values can improve fp16 convergence.')
-# parser.add_argument('--prof', dest='prof', action='store_true', help='Only run a few iters for profiling.')
+parser.add_argument('--prof', dest='prof', action='store_true', help='Only run a few iters for profiling.')
 
 parser.add_argument('--dist-url', default='file://sync.file', type=str,
                     help='url used to set up distributed training')
@@ -244,19 +247,23 @@ def main():
     learner = Learner.from_model_data(model, data)
     learner.crit = F.cross_entropy
     learner.metrics = [accuracy, top5]
-    if args.fp16:
-        learner.half()
+    if args.fp16: learner.half()
         
-
+    if args.prof:
+        args.epochs = 1
+        args.cycle_len=.01
+    if args.use_clr:
+        args.use_clr = tuple(map(float, args.use_clr.split(',')))
+    
     # 128x128
     if train_128:
         save_dir = args.save_dir+'/128'
         update_model_dir(learner, save_dir)
         sargs = save_args('first_run_128', save_dir)
-        learner.fit(args.lr,args.epochs, cycle_len=.005,
+        learner.fit(args.lr,args.epochs, cycle_len=args.cycle_len,
                     train_sampler=train_sampler,
                     wds=args.weight_decay,
-                    use_clr=(20,2),
+                    use_clr_beta=args.use_clr,
                     loss_scale=args.loss_scale,
                     **sargs
                 )
@@ -268,14 +275,18 @@ def main():
     # Full size
     update_model_dir(learner, args.save_dir)
     sargs = save_args('first_run', args.save_dir)
-    learner.fit(args.lr,args.epochs, cycle_len=.005,
+    learner.fit(args.lr,args.epochs, cycle_len=args.cycle_len,
                 train_sampler=train_sampler,
                 wds=args.weight_decay,
-                use_clr=(20,2),
+                use_clr_beta=args.use_clr,
                 loss_scale=args.loss_scale,
                 **sargs
                )
     save_sched(learner.sched, args.save_dir)
+
+    if args.use_tta:
+        print(accuracy(*learner.TTA()))
+        
     print('Finished!')
     
 main()
