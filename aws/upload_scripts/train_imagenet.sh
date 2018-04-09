@@ -38,7 +38,7 @@ fi
 if [[ -n "$MULTI" ]]; then
     MULTI="-m multiproc"
 fi
-TIME="(date '+%Y-%m-%d-%H-%M-%S')"
+TIME=$(date '+%Y-%m-%d-%H-%M-%S')
 PROJECT=$PROJECT-$TIME
 
 echo 'Warming up imagenet'
