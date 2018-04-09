@@ -1,5 +1,6 @@
 from .resnet import *
 from .dpn import *
+from .darknet import *
 from .se_resnet import *
 from .se_resnext import *
 from .pre_resnet import *
