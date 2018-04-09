@@ -109,17 +109,18 @@ def fast_loader(data_path, size):
         data.val_ds,
         batch_size=data.bs, shuffle=False,
         num_workers=data.num_workers, pin_memory=True)
-    data.val_dl = DataPrefetcher(data.val_dl)
+    data.val_dl = DataPrefetcher(data.val_dl, stop_early=args.prof)
     
     return data, train_sampler
 
 # Seems to speed up training by ~2%
 class DataPrefetcher():
-    def __init__(self, loader):
+    def __init__(self, loader, stop_early=False):
         self.loader = loader
         self.loaditer = iter(loader)
         self.dataset = loader.dataset
         self.stream = torch.cuda.Stream()
+        self.stop_early = stop_early
         self.preload()
 
     def __len__(self):
@@ -137,12 +138,16 @@ class DataPrefetcher():
             self.next_target = self.next_target.cuda(async=True)
 
     def __iter__(self):
+        count = 0
         while self.next_input is not None:
             torch.cuda.current_stream().wait_stream(self.stream)
             input = self.next_input
             target = self.next_target
             self.preload()
+            count += 1
             yield input, target
+            if self.stop_early and (count > 50):
+                break
             
 # Taken from main.py topk accuracy
 def top5(output, target):
