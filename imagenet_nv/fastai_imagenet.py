@@ -59,9 +59,10 @@ parser.add_argument('--weight-decay', '--wd', default=1e-4, type=float,
 #                     help='path to latest checkpoint (default: none)')
 # parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true',
 #                     help='evaluate model on validation set')
-# parser.add_argument('--pretrained', dest='pretrained', action='store_true', help='use pre-trained model')
+parser.add_argument('--pretrained', dest='pretrained', action='store_true', help='use pre-trained model')
 parser.add_argument('--fp16', action='store_true', help='Run model fp16 mode.')
-parser.add_argmuent('--use-tta', action='store_true', help='Run model with TTA at the end')
+parser.add_argument('--use-tta', action='store_true', help='Validate model with TTA at the end of traiing.')
+parser.add_argument('--train-128', action='store_true', help='Train model on 128. TODO: allow custom epochs and LR')
 parser.add_argument('--sz',       default=224, type=int, help='Size of transformed image.')
 # parser.add_argument('--decay-int', default=30, type=int, help='Decay LR by 10 every decay-int epochs')
 parser.add_argument('--use_clr', type=str, 
@@ -237,9 +238,7 @@ def main():
     if args.distributed:
         model = DDP(model)
         
-        
-    train_128 = True
-    if train_128:
+    if args.train_128:
         data, train_sampler = fast_loader(f'{args.data}-160', 128)
     else:
         data, train_sampler = fast_loader(args.data, args.sz)
@@ -256,7 +255,7 @@ def main():
         args.use_clr = tuple(map(float, args.use_clr.split(',')))
     
     # 128x128
-    if train_128:
+    if args.train_128:
         save_dir = args.save_dir+'/128'
         update_model_dir(learner, save_dir)
         sargs = save_args('first_run_128', save_dir)
