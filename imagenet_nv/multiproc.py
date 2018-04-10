@@ -4,11 +4,6 @@ import sys
 import subprocess
 from pathlib import Path
 
-parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')
-parser.add_argument('--save-dir', type=str, default=Path.cwd(),
-                    help='Directory to save logs and models.')
-
-args = parser.parse_args()
 argslist = list(sys.argv)[1:]
 world_size = torch.cuda.device_count()
 
@@ -26,7 +21,7 @@ for i in range(world_size):
     else:
         argslist.append('--rank')
         argslist.append(str(i))
-    stdout = None if i == 0 else open(f'{args.save_dir}/GPU_{i}.log', "w")
+    stdout = None if i == 0 else open(f'GPU_{i}.log', "w")
     #print(argslist)
     p = subprocess.Popen([str(sys.executable)]+argslist, stdout=stdout)
     workers.append(p)
