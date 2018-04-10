@@ -53,8 +53,9 @@ cd ~/fastai
 git pull
 git checkout fp16
 
-conda activate fastai
-conda env update
+
+SHELL=/bin/bash
+source ~/anaconda3/bin/activate fastai && conda env update -f=environment.yml
 ln -s ~/fastai/fastai ~/anaconda3/envs/fastai/lib/python3.6/site-packages
 
 DATA_DIR=~/data/imagenet

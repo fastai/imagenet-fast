@@ -122,6 +122,8 @@ class DataPrefetcher():
         self.dataset = loader.dataset
         self.stream = torch.cuda.Stream()
         self.stop_early = stop_early
+        self.next_input = None
+        self.next_target = None
 
     def __len__(self):
         return len(self.loader)
@@ -139,7 +141,8 @@ class DataPrefetcher():
 
     def __iter__(self):
         count = 0
-        self.loaditer = iter(loader)
+        self.loaditer = iter(self.loader)
+        self.preload()
         while self.next_input is not None:
             torch.cuda.current_stream().wait_stream(self.stream)
             input = self.next_input
@@ -212,7 +215,7 @@ def update_model_dir(learner, base_dir):
 cudnn.benchmark = True
 global args
 args = parser.parse_args()
-
+print('Running script with args:', args)
 
 def main():
     args.distributed = args.world_size > 1
