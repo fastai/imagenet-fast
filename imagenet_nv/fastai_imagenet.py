@@ -105,23 +105,28 @@ def fast_loader(data_path, size):
     data.trn_dl = torch.utils.data.DataLoader(
         data.trn_ds, batch_size=data.bs, shuffle=(train_sampler is None),
         num_workers=data.num_workers, pin_memory=True, sampler=train_sampler)
-    data.trn_dl = DataPrefetcher(data.trn_dl)
 
     data.val_dl = torch.utils.data.DataLoader(
         data.val_ds,
         batch_size=data.bs, shuffle=False,
         num_workers=data.num_workers, pin_memory=True)
-    data.val_dl = DataPrefetcher(data.val_dl, stop_early=args.prof)
+    if args.prof:
+        data.trn_dl = DataPrefetcher(data.trn_dl, stop_after=200)
+        data.val_dl = DataPrefetcher(data.val_dl, stop_after=0)
+    else:
+        data.trn_dl = DataPrefetcher(data.trn_dl)
+        data.val_dl = DataPrefetcher(data.val_dl)
+
     
     return data, train_sampler
 
 # Seems to speed up training by ~2%
 class DataPrefetcher():
-    def __init__(self, loader, stop_early=False):
+    def __init__(self, loader, stop_after=None):
         self.loader = loader
         self.dataset = loader.dataset
         self.stream = torch.cuda.Stream()
-        self.stop_early = stop_early
+        self.stop_after = stop_after
         self.next_input = None
         self.next_target = None
 
@@ -150,7 +155,7 @@ class DataPrefetcher():
             self.preload()
             count += 1
             yield input, target
-            if self.stop_early and (count > 50):
+            if type(self.stop_after) is int and (count > self.stop_after):
                 break
             
 # Taken from main.py topk accuracy
@@ -255,7 +260,7 @@ def main():
         
     if args.prof:
         args.epochs = 1
-        args.cycle_len=.01
+        args.cycle_len=1
     if args.use_clr:
         args.use_clr = tuple(map(float, args.use_clr.split(',')))
     
