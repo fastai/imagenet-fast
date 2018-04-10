@@ -13,6 +13,10 @@ else:
     argslist.append('--world-size')
     argslist.append(str(world_size))
 
+save_dir = Path.cwd()
+if '--save-dir' in argslist:
+    save_dir = argslist[argslist.index('--save-dir')+1]
+
 workers = []
 
 for i in range(world_size):
@@ -21,8 +25,7 @@ for i in range(world_size):
     else:
         argslist.append('--rank')
         argslist.append(str(i))
-    stdout = None if i == 0 else open(f'GPU_{i}.log', "w")
-    #print(argslist)
+    stdout = None if i == 0 else open(f'{save_dir}/GPU_{i}.log', "w")
     p = subprocess.Popen([str(sys.executable)]+argslist, stdout=stdout)
     workers.append(p)
 
