@@ -51,7 +51,7 @@ if [[ -n "$MULTI" ]]; then
     MULTI="-m multiproc"
 fi
 TIME=$(date '+%Y-%m-%d-%H-%M-%S')
-PROJECT=$PROJECT-$TIME
+PROJECT=$TIME-$PROJECT
 
 
 echo 'Updating fastai repo'
@@ -65,16 +65,12 @@ ln -s ~/fastai/fastai ~/anaconda3/envs/fastai/lib/python3.6/site-packages
 SAVE_DIR=~/$PROJECT
 mkdir $SAVE_DIR
 
-
-# tmux new-window -t imagenet -n 2 -d
-# tmux send-keys -t imagenet:2 "ls ~/data/imagenet-160/train" Enter
-# tmux send-keys -t imagenet:2 "ls ~/data/imagenet-160/val" Enter
-# tmux send-keys -t imagenet:2 "ls ~/data/imagenet/train" Enter
-# tmux send-keys -t imagenet:2 "ls ~/data/imagenet/val" Enter
 if [[ -n "$WARMUP" ]]; then
     echo "Warming up ebs volume... This may take a bit"
-    sudo apt install fio
-    sudo fio --directory=$DATA_DIR --rw=randread --bs=128k --iodepth=32 --ioengine=libaio --direct=1 --name=volume-warmup -size=80G
+    sudo apt install fio -y
+    sudo fio --directory=$DATA_DIR-160 --rw=randread --bs=128k --iodepth=32 --ioengine=libaio --direct=1 --name=volume-warmup -size=40G
+    tmux new-window -t imagenet -n 2 -d
+    tmux send-keys -t imagenet:2 "sudo fio --directory=$DATA_DIR --rw=randread --bs=128k --iodepth=32 --ioengine=libaio --direct=1 --name=volume-warmup -size=80G" Enter
 fi
 
 # Cleanup. Might not be a problem in newest AMI
@@ -91,7 +87,7 @@ git pull
 
 # Run fastai_imagenet
 echo "Running script: time python $MULTI fastai_imagenet.py $DATA_DIR --save-dir $SAVE_DIR $SARGS" |& tee -a $SAVE_DIR/command.log
-time python $MULTI fastai_imagenet.py $DATA_DIR --save-dir $SAVE_DIR $SARGS
+time python $MULTI fastai_imagenet.py $DATA_DIR --save-dir $SAVE_DIR $SARGS |& tee -a $SAVE_DIR/output.log
 
 scp -o StrictHostKeyChecking=no -r $SAVE_DIR ubuntu@aws-m5.mine.nu:~/data/imagenet_training
 

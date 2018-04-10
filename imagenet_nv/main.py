@@ -2,6 +2,7 @@ import argparse
 import os
 import shutil
 import time
+from pathlib import Path
 
 import torch
 from torch.autograd import Variable
@@ -26,6 +27,8 @@ model_names = sorted(name for name in models.__dict__
 parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')
 parser.add_argument('data', metavar='DIR',
                     help='path to dataset')
+parser.add_argument('--save-dir', type=str, default=Path.cwd(),
+                    help='Directory to save logs and models.')
 parser.add_argument('--arch', '-a', metavar='ARCH', default='resnet18',
                     choices=model_names,
                     help='model architecture: ' +
@@ -365,7 +368,7 @@ def validate(val_loader, model, criterion):
 def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
     torch.save(state, filename)
     if is_best:
-        shutil.copyfile(filename, 'model_best.pth.tar')
+        shutil.copyfile(filename, f'{args.save_dir}/model_best.pth.tar')
 
 
 class AverageMeter(object):

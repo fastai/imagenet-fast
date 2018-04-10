@@ -50,7 +50,7 @@ if [[ -n "$MULTI" ]]; then
     MULTI="-m multiproc"
 fi
 TIME=$(date '+%Y-%m-%d-%H-%M-%S')
-PROJECT=$PROJECT-$TIME
+PROJECT=$TIME-$PROJECT
 
 cd ~/fastai
 git pull
@@ -91,8 +91,8 @@ cd ~/git/imagenet-fast/imagenet_nv
 git pull
 
 # Run main.py
-echo "Running script: time python $MULTI main.py $DATA_DIR $SARGS |& tee -a output.log" |& tee -a $SAVE_DIR/command.log
-time python $MULTI main.py $DATA_DIR $SARGS |& tee -a output.log
+echo "Running script: time python $MULTI main.py $DATA_DIR --save-dir $SAVE_DIR $SARGS |& tee -a output.log" |& tee -a $SAVE_DIR/command.log
+time python $MULTI main.py $DATA_DIR --save-dir $SAVE_DIR $SARGS |& tee -a output.log
 
 mv *.log $SAVE_DIR
 mv *.tar $SAVE_DIR

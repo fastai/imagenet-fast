@@ -67,7 +67,7 @@ parser.add_argument('--use-tta', action='store_true', help='Validate model with 
 parser.add_argument('--train-128', action='store_true', help='Train model on 128. TODO: allow custom epochs and LR')
 parser.add_argument('--sz',       default=224, type=int, help='Size of transformed image.')
 # parser.add_argument('--decay-int', default=30, type=int, help='Decay LR by 10 every decay-int epochs')
-parser.add_argument('--use_clr', type=str, 
+parser.add_argument('--use-clr', type=str, 
                     help='div,pct,max_mom,min_mom. Pass in a string delimited by commas. Ex: "20,2,0.95,0.85"')
 parser.add_argument('--loss-scale', type=float, default=1,
                     help='Loss scaling, positive power of 2 values can improve fp16 convergence.')
@@ -95,7 +95,7 @@ def fast_loader(data_path, size):
     data = ImageClassifierData.from_paths(data_path, val_name='val', tfms=tfms, bs=args.batch_size, num_workers=args.workers)
 
     if args.distributed:
-        train_sampler = torch.utils.data.distributed.DistributedSampler(data.trn_bs)
+        train_sampler = torch.utils.data.distributed.DistributedSampler(data.trn_ds)
     else:
         train_sampler = None
 
