@@ -13,8 +13,10 @@ parser.add_argument('-vs', '--volume-size', default=500, type=int,
                     help='Size of ebs volume to create')
 parser.add_argument('-del', '--delete-ebs', action='store_true',
                     help='Delete ebs volume instance termination (default: True)')
-parser.add_argument('-efs', '--efs-name', default='fast-ai-efs', type=str,
+parser.add_argument('-efs', '--efs-name', type=str,
                     help='Name of efs volume to attach (default: fast-ai-efs)')
+parser.add_argument('-ebs', '--ebs-name', type=str,
+                    help='Name of ebs volume to attach.')
 parser.add_argument('-r', '--run-script', type=str,
                     help='Run custom script')
 parser.add_argument('-fast', '--use-fastai', action='store_true',
@@ -27,6 +29,8 @@ parser.add_argument('-t', '--terminate', action='store_true',
                     help='Terminate instance after script is run.')
 parser.add_argument('-ami', type=str,
                     help='AMI type')
+parser.add_argument('-price', type=str,
+                    help='Spot price')
 
 args = parser.parse_args()
 
@@ -38,7 +42,7 @@ def launch_instance(instance_name, launch_specs, itype):
     elif itype == 'spot':
         spot_prices = get_spot_prices()
         print('Creating Spot. Prices:', {k:v for (k,v) in spot_prices.items() if args.instance_type[:2] in k})
-        instance = create_spot_instance(instance_name, launch_specs)
+        instance = create_spot_instance(instance_name, launch_specs, spot_price=args.price)
     elif itype == 'cancel':
         print('Cancelling request...')
         return
@@ -46,6 +50,15 @@ def launch_instance(instance_name, launch_specs, itype):
         itype = input("Instance creation error. Try again? (spot/demand/cancel)\n")
         return launch_instance(instance_name, launch_specs, itype)
     return instance
+
+def attach_volumes(instance, client):
+    if (not args.ebs_name) and (not args.efs_name): return
+    if args.efs_name:
+        attach_efs(args.efs_name, client)
+    if args.ebs_name:
+        attach_volume(instance, args.ebs_name, device='/dev/xvdf')
+        mount_volume(client, device='/dev/xvdf', mount_dir='ebs_mount')
+
 
 def run_script(client):
     if args.use_fastai:
@@ -75,15 +88,23 @@ def main():
     instance = get_instance(instance_name)
     if instance: 
         print(f'Instance with name already found with name: {instance_name}. Connecting to this instead')
+        instance.start()
     else:
         vpc = get_vpc(args.vpc_name);
-        launch_specs = LaunchSpecs(vpc, instance_type=args.instance_type, volume_size=args.volume_size, delete_ebs=args.delete_ebs, ami=args.ami).build()
-        instance = launch_instance(instance_name, launch_specs, 'spot')
+        launch_specs = LaunchSpecs(vpc, instance_type=args.instance_type, volume_size=args.volume_size, delete_ebs=args.delete_ebs, ami=args.ami)
+        launch_specs.volume_type = 'io1'
+        instance = launch_instance(instance_name, launch_specs.build(), 'spot')
         
     if not instance: print('Instance failed.'); return;
 
     client = connect_to_instance(instance)
     print(f'Completed.\nSSH: ', get_ssh_command(instance))
+
+    try:
+        attach_volumes(instance, client)
+    except Exception as e:
+        print('Could not attach storage:', e)
+
 
     run_script(client)
 

@@ -25,7 +25,7 @@ done
 
 
 if [[ -z ${DIRECTORY+x} ]]; then
-    DIRECTORY="ebs_mount_point"
+    DIRECTORY="ebs_mount"
 fi
 
 set -- "${POSITIONAL[@]}" # restore positional parameters

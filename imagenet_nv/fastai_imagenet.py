@@ -95,7 +95,7 @@ def fast_loader(data_path, size):
     data = ImageClassifierData.from_paths(data_path, val_name='val', tfms=tfms, bs=args.batch_size, num_workers=args.workers)
 
     if args.distributed:
-        train_sampler = torch.utils.data.distributed.DistributedSampler(data.trn_dl)
+        train_sampler = torch.utils.data.distributed.DistributedSampler(data.trn_bs)
     else:
         train_sampler = None
 

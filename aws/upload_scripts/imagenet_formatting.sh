@@ -33,16 +33,16 @@ yes | sudo apt-get install pigz
 # Resize, tar, move to efs
 python resize_images.py 80 $imagenet_dir "resized_output"
 tar -I pigz -cf $output_dir/imagenet_80.tar.gz $output_dir/80
-sudo mv $output_dir/imagenet_80.tar.gz ~/efs_mount_point
+sudo mv $output_dir/imagenet_80.tar.gz ~/efs_mount
 
 python resize_images.py 160 $imagenet_dir "resized_output"
 tar -I pigz -cf $output_dir/imagenet_160.tar.gz $output_dir/160
-sudo mv $output_dir/imagenet_160.tar.gz ~/efs_mount_point
+sudo mv $output_dir/imagenet_160.tar.gz ~/efs_mount
 
 python resize_images.py 320 $imagenet_dir "resized_output"
 tar -I pigz -cf $output_dir/imagenet_320.tar.gz $output_dir/320
-sudo mv $output_dir/imagenet_320.tar.gz ~/efs_mount_point
+sudo mv $output_dir/imagenet_320.tar.gz ~/efs_mount
 
 python resize_images.py 375 $imagenet_dir "resized_output"
 tar -I pigz -cf $output_dir/imagenet_375.tar.gz $output_dir/375
-sudo sudomv $output_dir/imagenet_375.tar.gz ~/efs_mount_point
+sudo sudomv $output_dir/imagenet_375.tar.gz ~/efs_mount

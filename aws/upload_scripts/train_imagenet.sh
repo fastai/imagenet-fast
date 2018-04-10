@@ -17,8 +17,17 @@ case $key in
     shift # past argument
     shift # past value
     ;;
+    -dir|--data_dir)
+    DATA_DIR="$2"
+    shift # past argument
+    shift # past value
+    ;;
     -multi|--use_multiproc)
     MULTI="$1"
+    shift # past argument
+    ;;
+    -warmup|--warmup_ebs)
+    WARMUP="$1"
     shift # past argument
     ;;
     -sh|--auto_shut)
@@ -31,6 +40,9 @@ done
 if [[ -z ${PROJECT+x} ]]; then
     PROJECT="imagenet_training"
 fi
+if [[ -z ${DATA_DIR+x} ]]; then
+    DATA_DIR=~/data/imagenet
+fi
 if [[ -z ${SARGS+x} ]]; then
     echo "Must provide -sargs. E.G. '-a resnet50 -j 7 --epochs 100 -b 128 --loss-scale 128 --fp16 --world-size 8'"
     exit
@@ -41,27 +53,29 @@ fi
 TIME=$(date '+%Y-%m-%d-%H-%M-%S')
 PROJECT=$PROJECT-$TIME
 
-echo 'Warming up imagenet'
-tmux new-window -t imagenet -n 2 -d
-tmux send-keys -t imagenet:2 "ls ~/data/imagenet-160/train" Enter
-tmux send-keys -t imagenet:2 "ls ~/data/imagenet-160/val" Enter
-tmux send-keys -t imagenet:2 "ls ~/data/imagenet/train" Enter
-tmux send-keys -t imagenet:2 "ls ~/data/imagenet/val" Enter
 
 echo 'Updating fastai repo'
 cd ~/fastai
 git pull
 git checkout fp16
-
-
 SHELL=/bin/bash
 source ~/anaconda3/bin/activate fastai && conda env update -f=environment.yml
 ln -s ~/fastai/fastai ~/anaconda3/envs/fastai/lib/python3.6/site-packages
 
-DATA_DIR=~/data/imagenet
-DATA_DIR_160=~/data/imagenet
 SAVE_DIR=~/$PROJECT
 mkdir $SAVE_DIR
+
+
+# tmux new-window -t imagenet -n 2 -d
+# tmux send-keys -t imagenet:2 "ls ~/data/imagenet-160/train" Enter
+# tmux send-keys -t imagenet:2 "ls ~/data/imagenet-160/val" Enter
+# tmux send-keys -t imagenet:2 "ls ~/data/imagenet/train" Enter
+# tmux send-keys -t imagenet:2 "ls ~/data/imagenet/val" Enter
+if [[ -n "$WARMUP" ]]; then
+    echo "Warming up ebs volume... This may take a bit"
+    sudo apt install fio
+    sudo fio --directory=$DATA_DIR --rw=randread --bs=128k --iodepth=32 --ioengine=libaio --direct=1 --name=volume-warmup -size=80G
+fi
 
 # Cleanup. Might not be a problem in newest AMI
 sudo apt update && sudo apt install -y libsm6 libxext6
@@ -75,9 +89,9 @@ rm ~/data/imagenet/val/meta.pkl
 cd ~/git/imagenet-fast/imagenet_nv
 git pull
 
-echo "Running script: time python $MULTI fastai_imagenet.py $DATA_DIR $SARGS |& tee -a $SAVE_DIR/output.log"
 # Run fastai_imagenet
-time python $MULTI fastai_imagenet.py $DATA_DIR $SARGS |& tee -a $SAVE_DIR/output.log
+echo "Running script: time python $MULTI fastai_imagenet.py $DATA_DIR --save-dir $SAVE_DIR $SARGS" |& tee -a $SAVE_DIR/command.log
+time python $MULTI fastai_imagenet.py $DATA_DIR --save-dir $SAVE_DIR $SARGS
 
 scp -o StrictHostKeyChecking=no -r $SAVE_DIR ubuntu@aws-m5.mine.nu:~/data/imagenet_training
 

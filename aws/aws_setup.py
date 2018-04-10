@@ -13,7 +13,7 @@ def get_vpc(name):
     return vpcs[0] if vpcs else None
 
 def get_instance(name):
-    instances = list(ec2.instances.filter(Filters=[{'Name': 'tag-value', 'Values': [name]}]))
+    instances = list(ec2.instances.filter(Filters=[{'Name': 'tag-value', 'Values': [name]}, {'Name': 'instance-state-name', 'Values': ['running', 'stopped']}]))
     return instances[0] if instances else None
 
 def get_vpc_info(vpc):
@@ -116,6 +116,8 @@ def create_instance(name, launch_specs):
     
     print('Instance created...')
     instance.wait_until_running()
+    volume = list(instance.volumes.all())[0]
+    volume.create_tags(Tags=[{'Key':'Name','Value':f'{name}'}])
 
     print('Creating public IP address...')
     addr_id = allocate_vpc_addr(instance.id)['AllocationId']
@@ -155,9 +157,20 @@ class LaunchSpecs:
         self.device = '/dev/sda1'
         self.volume_size = volume_size
         self.volume_type = 'gp2'
+        self.io = 10000
         self.delete_ebs = delete_ebs
         self.vpc_tagname = list(filter(lambda i: i['Key'] == 'Name', vpc.tags))[0]['Value']
         self.keypair_name = f'aws-key-{self.vpc_tagname}'
+
+    def build_ebs(self):
+        ebs = {
+            # Volume size must be greater than snapshot size of 80
+            'VolumeSize': self.volume_size, 
+            'DeleteOnTermination': self.delete_ebs,
+            'VolumeType': self.volume_type
+        }
+        if self.volume_type == 'io1': ebs['Iops'] = self.io
+        return ebs
 
     def build(self):        
         launch_specification = {
@@ -172,12 +185,7 @@ class LaunchSpecs:
             }],
             'BlockDeviceMappings': [{
                 'DeviceName': '/dev/sda1', 
-                'Ebs': {
-                    # Volume size must be greater than snapshot size of 80
-                    'VolumeSize': self.volume_size, 
-                    'DeleteOnTermination': self.delete_ebs,
-                    'VolumeType': self.volume_type
-                }
+                'Ebs': self.build_ebs()
             }]
         }
         return launch_specification
@@ -197,6 +205,8 @@ def create_spot_instance(name, launch_specs, spot_price=None):
     instance.reboot()
     instance.wait_until_running()
     instance.create_tags(Tags=[{'Key':'Name','Value':f'{name}'}])
+    volume = list(instance.volumes.all())[0]
+    volume.create_tags(Tags=[{'Key':'Name','Value':f'{name}'}])
     print(f'Completed. SSH: ', get_ssh_command(instance))
     return instance
 
@@ -223,15 +233,25 @@ def get_efs_address(name):
         return f'{fs_id}.efs.{region}.amazonaws.com'
     print(f'Could not find address with name: {name}. Here are existing addresses:', file_systems)
 
+def attach_efs(efs_name, client):
+    efs_addr = get_efs_address(efs_name)
+    efs_mount_cmd = f'sudo mount -t nfs -o nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2 {efs_addr}:/ ~/efs_mount'
+    run_command(client, efs_mount_cmd)
+
 def attach_volume(instance, volume_tag, device='/dev/xvdf'):
     volumes = list(ec2.volumes.filter(Filters=[{'Name': 'tag-value', 'Values': [volume_tag]}]))
     if not volumes: print('Could not find volume for tag:', volume_tag); return
+    volume = volumes[0]
+    if volume.state == 'in-use': print('Volume already attached to a different instance.'); return
     instance.attach_volume(Device=device, VolumeId=volumes[0].id)
-    instance.reboot()
     instance.wait_until_running()
-    print('Volume attached. Please make sure to ssh into instance to format (if new volume) and mount')
-    # TODO: need to make sure ebs is formatted correctly inside the instance
-    return instance
+    return volume
+
+def mount_volume(client, device='/dev/xvdf', mount_dir='ebs_mount', reformat=False):
+    if reformat:
+        run_command(client, f'sudo mkfs -t ext4 {device}')
+    run_command(client, f'sudo mkdir {mount_dir}')
+    run_command(client, f'sudo mount {device}1 {mount_dir}') # no reformatting
 
 def create_volume(name, az, size=120, volume_type='gp2'):
     tag_specs = [{
