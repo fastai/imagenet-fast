@@ -35,7 +35,6 @@ case $key in
 esac
 done
 
-
 if [[ -z ${PROJECT+x} ]]; then
     PROJECT="imagenet_training"
 fi
@@ -51,18 +50,33 @@ if [[ -n "$MULTI" ]]; then
 fi
 TIME=$(date '+%Y-%m-%d-%H-%M-%S')
 PROJECT=$TIME-$PROJECT
+SAVE_DIR=~/$PROJECT
+mkdir $SAVE_DIR
 
+echo "$(date '+%Y-%m-%d-%H-%M-%S') Instance loaded. Updating projects." |& tee -a $SAVE_DIR/script.log
 cd ~/fastai
 git pull
 SHELL=/bin/bash
 source ~/anaconda3/bin/activate fastai && conda env update -f=environment.yml
 ln -s ~/fastai/fastai ~/anaconda3/envs/fastai/lib/python3.6/site-packages
 
-SAVE_DIR=~/$PROJECT
-mkdir $SAVE_DIR
+cd ~/git/imagenet-fast/imagenet_nv
+git pull
+
+# Cleanup. Might not be a problem in newest AMI
+sudo apt update && sudo apt install -y libsm6 libxext6
+pip install torchtext
+# Rogue files in validation set
+rm ~/data/imagenet/val/make-data.py
+rm ~/data/imagenet/val/valprep.sh
+rm ~/data/imagenet/val/meta.pkl
+OLD_BACKUP=$SAVE_DIR/backup
+mkdir $OLD_BACKUP
+mv *.log $OLD_BACKUP
+mv *.tar $OLD_BACKUP
 
 if [[ -n "$WARMUP" ]]; then
-    echo "Warming up volume: $(date '+%Y-%m-%d-%H-%M-%S')" |& tee -a $SAVE_DIR/script.log
+    echo "$(date '+%Y-%m-%d-%H-%M-%S') Warming up volume." |& tee -a $SAVE_DIR/script.log
     sudo apt install fio -y
     if [[ $SARGS = *"train-128"* ]]; then
         sudo fio --directory=$DATA_DIR-160 --rw=randread --bs=128k --iodepth=32 --ioengine=libaio --direct=1 --name=volume-warmup -size=40G
@@ -73,28 +87,10 @@ if [[ -n "$WARMUP" ]]; then
     fi
 fi
 
-OLD_BACKUP=$SAVE_DIR/backup
-mkdir $OLD_BACKUP
-mv *.log $OLD_BACKUP
-mv *.tar $OLD_BACKUP
-
-# Cleanup. Might not be a problem in newest AMI
-sudo apt update && sudo apt install -y libsm6 libxext6
-pip install torchtext
-# Rogue files in validation set
-rm ~/data/imagenet/val/make-data.py
-rm ~/data/imagenet/val/valprep.sh
-rm ~/data/imagenet/val/meta.pkl
-
-
-cd ~/git/imagenet-fast/imagenet_nv
-git pull
-
 # Run main.py
-echo "Running script: time python $MULTI main.py $DATA_DIR --save-dir $SAVE_DIR $SARGS |& tee -a output.log" |& tee -a $SAVE_DIR/script.log
-echo "Starting script: $(date '+%Y-%m-%d-%H-%M-%S')" |& tee -a $SAVE_DIR/script.log
+echo "$(date '+%Y-%m-%d-%H-%M-%S') Running script: time python $MULTI main.py $DATA_DIR --save-dir $SAVE_DIR $SARGS" |& tee -a $SAVE_DIR/script.log
 time python $MULTI main.py $DATA_DIR --save-dir $SAVE_DIR $SARGS
-echo "Script finished: $(date '+%Y-%m-%d-%H-%M-%S')" |& tee -a $SAVE_DIR/script.log
+echo "$(date '+%Y-%m-%d-%H-%M-%S') Imagenet training finished." |& tee -a $SAVE_DIR/script.log
 
 mv *.log $SAVE_DIR
 mv *.tar $SAVE_DIR

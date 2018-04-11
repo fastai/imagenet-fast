@@ -52,21 +52,29 @@ if [[ -n "$MULTI" ]]; then
 fi
 TIME=$(date '+%Y-%m-%d-%H-%M-%S')
 PROJECT=$TIME-$PROJECT
+SAVE_DIR=~/$PROJECT
+mkdir $SAVE_DIR
 
-
-echo 'Updating fastai repo'
+echo "$(date '+%Y-%m-%d-%H-%M-%S') Instance loaded. Updating projects." |& tee -a $SAVE_DIR/script.log
 cd ~/fastai
 git pull
 git checkout fp16
 SHELL=/bin/bash
 source ~/anaconda3/bin/activate fastai && conda env update -f=environment.yml
 ln -s ~/fastai/fastai ~/anaconda3/envs/fastai/lib/python3.6/site-packages
+cd ~/git/imagenet-fast/imagenet_nv
+git pull
 
-SAVE_DIR=~/$PROJECT
-mkdir $SAVE_DIR
+# Cleanup. Might not be a problem in newest AMI
+sudo apt update && sudo apt install -y libsm6 libxext6
+pip install torchtext
+# Rogue files in validation set
+rm ~/data/imagenet/val/make-data.py
+rm ~/data/imagenet/val/valprep.sh
+rm ~/data/imagenet/val/meta.pkl
 
 if [[ -n "$WARMUP" ]]; then
-    echo "Warming up volume: $(date '+%Y-%m-%d-%H-%M-%S')" |& tee -a $SAVE_DIR/script.log
+    echo "$(date '+%Y-%m-%d-%H-%M-%S') Warming up volume." |& tee -a $SAVE_DIR/script.log
     sudo apt install fio -y
     if [[ $SARGS = *"train-128"* ]]; then
         sudo fio --directory=$DATA_DIR-160 --rw=randread --bs=128k --iodepth=32 --ioengine=libaio --direct=1 --name=volume-warmup -size=40G
@@ -77,23 +85,10 @@ if [[ -n "$WARMUP" ]]; then
     fi
 fi
 
-# Cleanup. Might not be a problem in newest AMI
-sudo apt update && sudo apt install -y libsm6 libxext6
-pip install torchtext
-# Rogue files in validation set
-rm ~/data/imagenet/val/make-data.py
-rm ~/data/imagenet/val/valprep.sh
-rm ~/data/imagenet/val/meta.pkl
-
-
-cd ~/git/imagenet-fast/imagenet_nv
-git pull
-
 # Run fastai_imagenet
-echo "Running script: time python $MULTI fastai_imagenet.py $DATA_DIR --save-dir $SAVE_DIR $SARGS" |& tee -a $SAVE_DIR/script.log
-echo "Starting script: $(date '+%Y-%m-%d-%H-%M-%S')" |& tee -a $SAVE_DIR/script.log
+echo "$(date '+%Y-%m-%d-%H-%M-%S') Running script: time python $MULTI fastai_imagenet.py $DATA_DIR --save-dir $SAVE_DIR $SARGS" |& tee -a $SAVE_DIR/script.log
 time python $MULTI fastai_imagenet.py $DATA_DIR --save-dir $SAVE_DIR $SARGS |& tee -a $SAVE_DIR/output.log
-echo "Script finished: $(date '+%Y-%m-%d-%H-%M-%S')" |& tee -a $SAVE_DIR/script.log
+echo "$(date '+%Y-%m-%d-%H-%M-%S') Imagenet training finished." |& tee -a $SAVE_DIR/script.log
 
 scp -o StrictHostKeyChecking=no -r $SAVE_DIR ubuntu@aws-m5.mine.nu:~/data/imagenet_training
 
