@@ -119,7 +119,7 @@ def torch_loader(data_path, size):
     train_loader = DataPrefetcher(train_loader)
     val_loader = DataPrefetcher(val_loader)
     if args.prof:
-        train_loader.stop_after = 200
+        train_loader.stop_after = 800
         val_loader.stop_after = 0
 
     data = ModelData(data_path, train_loader, val_loader)
@@ -304,8 +304,7 @@ def main():
     save_sched(learner.sched, args.save_dir)
 
     if args.use_tta:
-        print('TTA is disabled for now. Need to add aug_dl to enable this')
-        # print(accuracy(*learner.TTA()))
+        print(accuracy(*learner.TTA()))
         
     print('Finished!')
     
