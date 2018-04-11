@@ -66,11 +66,15 @@ SAVE_DIR=~/$PROJECT
 mkdir $SAVE_DIR
 
 if [[ -n "$WARMUP" ]]; then
-    echo "Warming up ebs volume... This may take a bit"
+    echo "Warming up volume: $(date '+%Y-%m-%d-%H-%M-%S')" |& tee -a $SAVE_DIR/script.log
     sudo apt install fio -y
-    sudo fio --directory=$DATA_DIR-160 --rw=randread --bs=128k --iodepth=32 --ioengine=libaio --direct=1 --name=volume-warmup -size=40G
-    tmux new-window -t imagenet -n 2 -d
-    tmux send-keys -t imagenet:2 "sudo fio --directory=$DATA_DIR --rw=randread --bs=128k --iodepth=32 --ioengine=libaio --direct=1 --name=volume-warmup -size=80G" Enter
+    if [[ $SARGS = *"train-128"* ]]; then
+        sudo fio --directory=$DATA_DIR-160 --rw=randread --bs=128k --iodepth=32 --ioengine=libaio --direct=1 --name=volume-warmup -size=40G
+        tmux new-window -t imagenet -n 2 -d
+        tmux send-keys -t imagenet:2 "sudo fio --directory=$DATA_DIR --rw=randread --bs=128k --iodepth=32 --ioengine=libaio --direct=1 --name=volume-warmup -size=80G" Enter
+    else
+        sudo fio --directory=$DATA_DIR --rw=randread --bs=128k --iodepth=32 --ioengine=libaio --direct=1 --name=volume-warmup -size=40G
+    fi
 fi
 
 # Cleanup. Might not be a problem in newest AMI
@@ -86,8 +90,10 @@ cd ~/git/imagenet-fast/imagenet_nv
 git pull
 
 # Run fastai_imagenet
-echo "Running script: time python $MULTI fastai_imagenet.py $DATA_DIR --save-dir $SAVE_DIR $SARGS" |& tee -a $SAVE_DIR/command.log
+echo "Running script: time python $MULTI fastai_imagenet.py $DATA_DIR --save-dir $SAVE_DIR $SARGS" |& tee -a $SAVE_DIR/script.log
+echo "Starting script: $(date '+%Y-%m-%d-%H-%M-%S')" |& tee -a $SAVE_DIR/script.log
 time python $MULTI fastai_imagenet.py $DATA_DIR --save-dir $SAVE_DIR $SARGS |& tee -a $SAVE_DIR/output.log
+echo "Script finished: $(date '+%Y-%m-%d-%H-%M-%S')" |& tee -a $SAVE_DIR/script.log
 
 scp -o StrictHostKeyChecking=no -r $SAVE_DIR ubuntu@aws-m5.mine.nu:~/data/imagenet_training
 

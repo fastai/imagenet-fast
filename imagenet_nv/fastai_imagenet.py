@@ -163,14 +163,17 @@ class DataPrefetcher():
             yield input, target
             if type(self.stop_after) is int and (count > self.stop_after):
                 break
-            
-# Taken from main.py topk accuracy
+
+
 def top5(output, target):
     """Computes the precision@k for the specified values of k"""
+    top5 = 5
     batch_size = target.size(0)
-    _, pred = output.topk(5, 1, True, True)
+    _, pred = output.topk(top5, 1, True, True)
     pred = pred.t()
-    return pred.eq(target.view(1, -1).expand_as(pred)).sum()/batch_size
+    correct = pred.eq(target.view(1, -1).expand_as(pred))
+    correct_k = correct[:top5].view(-1).float().sum(0, keepdim=True)
+    return correct_k.mul_(1.0 / batch_size)
 
 
 class ImagenetLoggingCallback(Callback):

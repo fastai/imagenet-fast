@@ -61,16 +61,16 @@ ln -s ~/fastai/fastai ~/anaconda3/envs/fastai/lib/python3.6/site-packages
 SAVE_DIR=~/$PROJECT
 mkdir $SAVE_DIR
 
-# Warm up imagenet files?
-# tmux new-window -t imagenet -n 2 -d
-# tmux send-keys -t imagenet:2 "ls ~/data/imagenet-160/train" Enter
-# tmux send-keys -t imagenet:2 "ls ~/data/imagenet-160/val" Enter
-# tmux send-keys -t imagenet:2 "ls ~/data/imagenet/train" Enter
-# tmux send-keys -t imagenet:2 "ls ~/data/imagenet/val" Enter
 if [[ -n "$WARMUP" ]]; then
-    echo "Warming up ebs volume... This may take a bit"
+    echo "Warming up volume: $(date '+%Y-%m-%d-%H-%M-%S')" |& tee -a $SAVE_DIR/script.log
     sudo apt install fio -y
-    sudo fio --directory=$DATA_DIR --rw=randread --bs=128k --iodepth=32 --ioengine=libaio --direct=1 --name=volume-warmup -size=80G
+    if [[ $SARGS = *"train-128"* ]]; then
+        sudo fio --directory=$DATA_DIR-160 --rw=randread --bs=128k --iodepth=32 --ioengine=libaio --direct=1 --name=volume-warmup -size=40G
+        tmux new-window -t imagenet -n 2 -d
+        tmux send-keys -t imagenet:2 "sudo fio --directory=$DATA_DIR --rw=randread --bs=128k --iodepth=32 --ioengine=libaio --direct=1 --name=volume-warmup -size=80G" Enter
+    else
+        sudo fio --directory=$DATA_DIR --rw=randread --bs=128k --iodepth=32 --ioengine=libaio --direct=1 --name=volume-warmup -size=40G
+    fi
 fi
 
 OLD_BACKUP=$SAVE_DIR/backup
@@ -91,8 +91,10 @@ cd ~/git/imagenet-fast/imagenet_nv
 git pull
 
 # Run main.py
-echo "Running script: time python $MULTI main.py $DATA_DIR --save-dir $SAVE_DIR $SARGS |& tee -a output.log" |& tee -a $SAVE_DIR/command.log
-time python $MULTI main.py $DATA_DIR --save-dir $SAVE_DIR $SARGS |& tee -a output.log
+echo "Running script: time python $MULTI main.py $DATA_DIR --save-dir $SAVE_DIR $SARGS |& tee -a output.log" |& tee -a $SAVE_DIR/script.log
+echo "Starting script: $(date '+%Y-%m-%d-%H-%M-%S')" |& tee -a $SAVE_DIR/script.log
+time python $MULTI main.py $DATA_DIR --save-dir $SAVE_DIR $SARGS
+echo "Script finished: $(date '+%Y-%m-%d-%H-%M-%S')" |& tee -a $SAVE_DIR/script.log
 
 mv *.log $SAVE_DIR
 mv *.tar $SAVE_DIR
