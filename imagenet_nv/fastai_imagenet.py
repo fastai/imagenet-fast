@@ -92,7 +92,7 @@ class TorchModelData(ModelData):
 def torch_loader(data_path, size):
     # Data loading code
     traindir = os.path.join(data_path, 'train')
-    valdir = os.path.join(data_path, 'test')
+    valdir = os.path.join(data_path, 'val')
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 
     train_tfms = transforms.Compose([
