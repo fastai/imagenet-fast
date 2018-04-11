@@ -118,6 +118,10 @@ def main():
     # define loss function (criterion) and optimizer
     criterion = nn.CrossEntropyLoss().cuda()
     optimizer = torch.optim.SGD(param_copy, args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
+    def to_half(x):
+       x = np.array(x, np.float32, copy=False)
+       if len(x.shape)==2: x = np.repeat(x[...,None],3,2)
+       return torch.cuda.HalfTensor(x)
 
     # optionally resume from a checkpoint
     if args.resume:
@@ -136,14 +140,14 @@ def main():
     traindir = os.path.join(args.data, 'train')
     valdir = os.path.join(args.data, 'val')
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    tensor_tfm = to_half if args.fp16 else transforms.ToTensor()
 
     train_dataset = datasets.ImageFolder(
         traindir,
         transforms.Compose([
             transforms.RandomResizedCrop(args.sz),
             transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-            normalize,
+            tensor_tfm, normalize
         ]))
 
     train_sampler = (torch.utils.data.distributed.DistributedSampler(train_dataset)
@@ -158,10 +162,10 @@ def main():
             transforms.Resize(int(args.sz*1.14)),
             transforms.CenterCrop(args.sz),
             transforms.ToTensor(),
-            normalize,
+            tensor_tfm, normalize
         ])),
         batch_size=args.batch_size, shuffle=False,
-        num_workers=args.workers, pin_memory=True)
+        num_workers=args.workers, pin_memory=False)
 
     if args.evaluate:
         validate(val_loader, model, criterion)
@@ -197,7 +201,7 @@ def to_python_float(t):
         return t[0]
 
 class data_prefetcher():
-    def __init__(self, loader, prefetch=True):
+    def __init__(self, loader, prefetch=False):
         self.loader,self.prefetch = iter(loader),prefetch
         if prefetch:
             self.stream = torch.cuda.Stream()
