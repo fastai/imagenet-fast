@@ -84,47 +84,56 @@ parser.add_argument('--rank', default=0, type=int,
                     help='Used for multi-process training. Can either be manually set ' +
                     'or automatically set by using \'python -m multiproc\'.')
 
+class TorchModelData(ModelData):
+    def __init__(self, path, trn_dl, val_dl, aug_dl=None):
+        super().__init__(path, trn_dl, val_dl)
+        self.aug_dl = aug_dl
+
 def torch_loader(data_path, size):
     # Data loading code
     traindir = os.path.join(data_path, 'train')
-    valdir = os.path.join(data_path, 'val')
+    valdir = os.path.join(data_path, 'test')
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 
-    train_dataset = datasets.ImageFolder(
-        traindir,
-        transforms.Compose([
-            transforms.RandomResizedCrop(size),
-            transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-            normalize,
-        ]))
-
+    train_tfms = transforms.Compose([
+        transforms.RandomResizedCrop(size),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        normalize,
+    ])
+    train_dataset = datasets.ImageFolder(traindir, train_tfms)
     train_sampler = (torch.utils.data.distributed.DistributedSampler(train_dataset)
                      if args.distributed else None)
-
     train_loader = torch.utils.data.DataLoader(
         train_dataset, batch_size=args.batch_size, shuffle=(train_sampler is None),
         num_workers=args.workers, pin_memory=True, sampler=train_sampler)
 
+    val_tfms = transforms.Compose([
+        transforms.Resize(int(size*1.14)),
+        transforms.CenterCrop(size),
+        transforms.ToTensor(),
+        normalize,
+    ])
     val_loader = torch.utils.data.DataLoader(
-        datasets.ImageFolder(valdir, transforms.Compose([
-            transforms.Resize(int(size*1.14)),
-            transforms.CenterCrop(size),
-            transforms.ToTensor(),
-            normalize,
-        ])),
+        datasets.ImageFolder(valdir, val_tfms),
         batch_size=args.batch_size, shuffle=False,
         num_workers=args.workers, pin_memory=True)
-    
+
+
+    aug_loader = torch.utils.data.DataLoader(
+        datasets.ImageFolder(valdir, train_tfms),
+        batch_size=args.batch_size, shuffle=False,
+        num_workers=args.workers, pin_memory=True)
+
     train_loader = DataPrefetcher(train_loader)
     val_loader = DataPrefetcher(val_loader)
+    aug_loader = DataPrefetcher(aug_loader)
     if args.prof:
         train_loader.stop_after = 200
         val_loader.stop_after = 0
 
-    data = ModelData(data_path, train_loader, val_loader)
+    data = TorchModelData(data_path, train_loader, val_loader, aug_loader)
     return data, train_sampler
-
 
 # Seems to speed up training by ~2%
 class DataPrefetcher():
@@ -307,8 +316,13 @@ def main():
     save_sched(learner.sched, args.save_dir)
 
     if args.use_tta:
-        print('TTA is disabled for now. Need to add aug_dl to enable this')
-        # print(accuracy(*learner.TTA()))
+        log_preds,y = learner.TTA()
+        preds = np.mean(np.exp(log_preds),0)
+        acc = accuracy(torch.FloatTensor(preds),torch.LongTensor(y))
+        print('TTA acc:', acc)
+
+        with open(args.save_dir+'/tta_accuracy.txt', "a", 1) as f:
+            f.write(time.strftime("%Y-%m-%dT%H:%M:%S")+f"\tTTA accuracty: {acc}\n")
         
     print('Finished!')
     
