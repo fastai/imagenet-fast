@@ -44,6 +44,8 @@ parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
                     help='number of data loading workers (default: 4)')
 parser.add_argument('--epochs', default=90, type=int, metavar='N',
                     help='number of total epochs to run')
+parser.add_argument('--cycle-len', default=1, type=float, metavar='N',
+                    help='Length of cycle to run')
 # parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
 #                     help='manual epoch number (useful on restarts)')
 parser.add_argument('-b', '--batch-size', default=256, type=int,
@@ -65,7 +67,7 @@ parser.add_argument('--use-tta', action='store_true', help='Validate model with 
 parser.add_argument('--train-128', action='store_true', help='Train model on 128. TODO: allow custom epochs and LR')
 parser.add_argument('--sz',       default=224, type=int, help='Size of transformed image.')
 # parser.add_argument('--decay-int', default=30, type=int, help='Decay LR by 10 every decay-int epochs')
-parser.add_argument('--use_clr', type=str, 
+parser.add_argument('--use-clr', type=str, 
                     help='div,pct,max_mom,min_mom. Pass in a string delimited by commas. Ex: "20,2,0.95,0.85"')
 parser.add_argument('--loss-scale', type=float, default=1,
                     help='Loss scaling, positive power of 2 values can improve fp16 convergence.')
@@ -82,46 +84,57 @@ parser.add_argument('--rank', default=0, type=int,
                     help='Used for multi-process training. Can either be manually set ' +
                     'or automatically set by using \'python -m multiproc\'.')
 
-def fast_loader(data_path, size):
-    aug_tfms = [
-        RandomFlip(),
-#         RandomRotate(4),
-#         RandomLighting(0.05, 0.05),
-        RandomCrop(size)
-    ]
-    tfms = tfms_from_stats(imagenet_stats, size, aug_tfms=aug_tfms)
-    data = ImageClassifierData.from_paths(data_path, val_name='val', tfms=tfms, bs=args.batch_size, num_workers=args.workers)
+def torch_loader(data_path, size):
+    # Data loading code
+    traindir = os.path.join(data_path, 'train')
+    valdir = os.path.join(data_path, 'val')
+    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 
-    if args.distributed:
-        train_sampler = torch.utils.data.distributed.DistributedSampler(data.trn_dl)
-    else:
-        train_sampler = None
+    train_dataset = datasets.ImageFolder(
+        traindir,
+        transforms.Compose([
+            transforms.RandomResizedCrop(size),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            normalize,
+        ]))
 
-    # TODO: Need to test train_sampler on distributed machines
+    train_sampler = (torch.utils.data.distributed.DistributedSampler(train_dataset)
+                     if args.distributed else None)
+
+    train_loader = torch.utils.data.DataLoader(
+        train_dataset, batch_size=args.batch_size, shuffle=(train_sampler is None),
+        num_workers=args.workers, pin_memory=True, sampler=train_sampler)
+
+    val_loader = torch.utils.data.DataLoader(
+        datasets.ImageFolder(valdir, transforms.Compose([
+            transforms.Resize(int(size*1.14)),
+            transforms.CenterCrop(size),
+            transforms.ToTensor(),
+            normalize,
+        ])),
+        batch_size=args.batch_size, shuffle=False,
+        num_workers=args.workers, pin_memory=True)
     
-    # Use pytorch default data loader. 20% faster
-    data.trn_dl = torch.utils.data.DataLoader(
-        data.trn_ds, batch_size=data.bs, shuffle=(train_sampler is None),
-        num_workers=data.num_workers, pin_memory=True, sampler=train_sampler)
-    data.trn_dl = DataPrefetcher(data.trn_dl)
+    train_loader = DataPrefetcher(train_loader)
+    val_loader = DataPrefetcher(val_loader)
+    if args.prof:
+        train_loader.stop_after = 200
+        val_loader.stop_after = 0
 
-    data.val_dl = torch.utils.data.DataLoader(
-        data.val_ds,
-        batch_size=data.bs, shuffle=False,
-        num_workers=data.num_workers, pin_memory=True)
-    data.val_dl = DataPrefetcher(data.val_dl, stop_early=args.prof)
-    
+    data = ModelData(data_path, train_loader, val_loader)
     return data, train_sampler
+
 
 # Seems to speed up training by ~2%
 class DataPrefetcher():
-    def __init__(self, loader, stop_early=False):
+    def __init__(self, loader, stop_after=None):
         self.loader = loader
-        self.loaditer = iter(loader)
         self.dataset = loader.dataset
         self.stream = torch.cuda.Stream()
-        self.stop_early = stop_early
-        self.preload()
+        self.stop_after = stop_after
+        self.next_input = None
+        self.next_target = None
 
     def __len__(self):
         return len(self.loader)
@@ -139,6 +152,8 @@ class DataPrefetcher():
 
     def __iter__(self):
         count = 0
+        self.loaditer = iter(self.loader)
+        self.preload()
         while self.next_input is not None:
             torch.cuda.current_stream().wait_stream(self.stream)
             input = self.next_input
@@ -146,29 +161,31 @@ class DataPrefetcher():
             self.preload()
             count += 1
             yield input, target
-            if self.stop_early and (count > 50):
+            if type(self.stop_after) is int and (count > self.stop_after):
                 break
-            
-# Taken from main.py topk accuracy
+
+
 def top5(output, target):
     """Computes the precision@k for the specified values of k"""
-    topk = 5
+    top5 = 5
     batch_size = target.size(0)
-    _, pred = output.topk(topk, 1, True, True)
+    _, pred = output.topk(top5, 1, True, True)
     pred = pred.t()
     correct = pred.eq(target.view(1, -1).expand_as(pred))
-    res = []
-    correct_k = correct[:5].view(-1).float().sum(0, keepdim=True)
-    return correct_k.mul_(100.0 / batch_size)
+    correct_k = correct[:top5].view(-1).float().sum(0, keepdim=True)
+    return correct_k.mul_(1.0 / batch_size)
 
-class ValLoggingCallback(Callback):
-    def __init__(self, save_path):
+
+class ImagenetLoggingCallback(Callback):
+    def __init__(self, save_path, print_every=50):
         super().__init__()
         self.save_path=save_path
+        self.print_every=print_every
     def on_train_begin(self):
         self.batch = 0
         self.epoch = 0
         self.f = open(self.save_path, "a", 1)
+        self.log("\ton_train_begin")
     def on_epoch_end(self, metrics):
         log_str = f'\tEpoch:{self.epoch}\ttrn_loss:{self.last_loss}'
         for (k,v) in zip(['val_loss', 'acc', 'top5', ''], metrics): log_str += f'\t{k}:{v}'
@@ -177,6 +194,8 @@ class ValLoggingCallback(Callback):
     def on_batch_end(self, metrics):
         self.last_loss = metrics
         self.batch += 1
+        if self.batch % self.print_every == 0:
+            self.log(f'Epoch: {self.epoch} Batch: {self.batch} Metrics: {metrics}')
     def on_train_end(self):
         self.log("\ton_train_end")
         self.f.close()
@@ -193,8 +212,7 @@ def save_args(name, save_dir):
         'best_save_name': f'{name}_best_model',
         'cycle_save_name': f'{name}',
         'callbacks': [
-            LoggingCallback(f'{log_dir}/{name}_log.txt'),
-            ValLoggingCallback(f'{log_dir}/{name}_val_log.txt')
+            ImagenetLoggingCallback(f'{log_dir}/{name}_log.txt')
         ]
     }
 
@@ -215,7 +233,7 @@ def update_model_dir(learner, base_dir):
 cudnn.benchmark = True
 global args
 args = parser.parse_args()
-
+print('Running script with args:', args)
 
 def main():
     args.distributed = args.world_size > 1
@@ -244,9 +262,9 @@ def main():
         model = DDP(model)
         
     if args.train_128:
-        data, train_sampler = fast_loader(f'{args.data}-160', 128)
+        data, train_sampler = torch_loader(f'{args.data}-160', 128)
     else:
-        data, train_sampler = fast_loader(args.data, args.sz)
+        data, train_sampler = torch_loader(args.data, args.sz)
 
     learner = Learner.from_model_data(model, data)
     learner.crit = F.cross_entropy
@@ -255,7 +273,7 @@ def main():
         
     if args.prof:
         args.epochs = 1
-        args.cycle_len=.01
+        args.cycle_len=1
     if args.use_clr:
         args.use_clr = tuple(map(float, args.use_clr.split(',')))
     
@@ -272,7 +290,7 @@ def main():
                     **sargs
                 )
         save_sched(learner.sched, save_dir)
-        data, train_sampler = fast_loader(args.data, args.sz)
+        data, train_sampler = torch_loader(args.data, args.sz)
         learner.set_data(data)
 
 
@@ -289,7 +307,8 @@ def main():
     save_sched(learner.sched, args.save_dir)
 
     if args.use_tta:
-        print(accuracy(*learner.TTA()))
+        print('TTA is disabled for now. Need to add aug_dl to enable this')
+        # print(accuracy(*learner.TTA()))
         
     print('Finished!')
     
