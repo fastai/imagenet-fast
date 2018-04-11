@@ -29,6 +29,8 @@ parser.add_argument('-t', '--terminate', action='store_true',
                     help='Terminate instance after script is run.')
 parser.add_argument('-ami', type=str,
                     help='AMI type')
+parser.add_argument('--launch-method', type=str, default='spot',
+                    help='Launch instance with (spot|demand|find)')
 parser.add_argument('-price', type=str,
                     help='Spot price')
 
@@ -87,15 +89,18 @@ def main():
     instance_name = f'{args.vpc_name}-{args.project_name}'
     instance = get_instance(instance_name)
     if instance: 
-        print(f'Instance with name already found with name: {instance_name}. Connecting to this instead')
+        print(f'Instance found with name: {instance_name}. Connecting to this instead')
         instance.start()
+    elif args.launch_method == 'find':
+        print('Could not find instance with name. Please create one with spot or demand')
+        return
     else:
         vpc = get_vpc(args.vpc_name);
         launch_specs = LaunchSpecs(vpc, instance_type=args.instance_type, volume_size=args.volume_size, delete_ebs=args.delete_ebs, ami=args.ami)
         launch_specs.volume_type = 'io1'
-        instance = launch_instance(instance_name, launch_specs.build(), 'spot')
+        instance = launch_instance(instance_name, launch_specs.build(), args.launch_method)
         
-    if not instance: print('Instance failed.'); return;
+    if not instance: print('Instance creation failed.'); return;
 
     client = connect_to_instance(instance)
     print(f'Completed.\nSSH: ', get_ssh_command(instance))

@@ -104,7 +104,7 @@ def allocate_vpc_addr(instance_id):
     ec2c.associate_address(InstanceId=instance_id, AllocationId=alloc_addr['AllocationId'])
     return alloc_addr
 
-def create_instance(name, launch_specs):
+def create_instance(name, launch_specs, allocate_public_ip=False):
     instance = ec2.create_instances(ImageId=launch_specs['ImageId'], InstanceType=launch_specs['InstanceType'], 
                      MinCount=1, MaxCount=1,
                      KeyName=launch_specs['KeyName'],
@@ -119,8 +119,9 @@ def create_instance(name, launch_specs):
     volume = list(instance.volumes.all())[0]
     volume.create_tags(Tags=[{'Key':'Name','Value':f'{name}'}])
 
-    print('Creating public IP address...')
-    addr_id = allocate_vpc_addr(instance.id)['AllocationId']
+    if allocate_public_ip:
+        print('Creating public IP address...')
+        addr_id = allocate_vpc_addr(instance.id)['AllocationId']
     
     print('Rebooting...')
     instance.reboot()
