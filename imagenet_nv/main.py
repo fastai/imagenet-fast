@@ -3,6 +3,7 @@ import os
 import shutil
 import time
 from pathlib import Path
+import numpy as np
 
 import torch
 from torch.autograd import Variable
@@ -118,10 +119,6 @@ def main():
     # define loss function (criterion) and optimizer
     criterion = nn.CrossEntropyLoss().cuda()
     optimizer = torch.optim.SGD(param_copy, args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
-    def to_half(x):
-       x = np.array(x, np.float32, copy=False)
-       if len(x.shape)==2: x = np.repeat(x[...,None],3,2)
-       return torch.cuda.HalfTensor(x)
 
     # optionally resume from a checkpoint
     if args.resume:
@@ -140,7 +137,7 @@ def main():
     traindir = os.path.join(args.data, 'train')
     valdir = os.path.join(args.data, 'val')
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-    tensor_tfm = to_half if args.fp16 else transforms.ToTensor()
+    tensor_tfm = transforms.ToTensor()
 
     train_dataset = datasets.ImageFolder(
         traindir,
