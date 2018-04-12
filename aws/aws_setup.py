@@ -16,16 +16,18 @@ def get_instance(name):
     instances = list(ec2.instances.filter(Filters=[{'Name': 'tag-value', 'Values': [name]}, {'Name': 'instance-state-name', 'Values': ['running', 'stopped']}]))
     return instances[0] if instances else None
 
-def get_vpc_info(vpc):
+def get_vpc_info(vpc, availability_zone=None):
     try:
         vpc_tag_name = list(filter(lambda i: i['Key'] == 'Name', vpc.tags))[0]['Value']
         sg = list(vpc.security_groups.filter(Filters=[{'Name': 'group-name', 'Values': [f'{vpc_tag_name}-security-group']}]))[0]
-        subnet = list(vpc.subnets.filter(Filters=[{'Name': 'tag-value', 'Values': [f'{vpc_tag_name}-subnet']}]))[0]
+        subnet_filters = [{'Name': 'tag-value', 'Values': [f'{vpc_tag_name}-subnet']}]
+        if availability_zone:
+            subnet_filters.append({'Name': 'tag-value', 'Values': [availability_zone]})
+        subnet = list(vpc.subnets.filter(Filters=subnet_filters))[0]
     except Exception as e:
         print('Could not get VPC info: ', e)
     return sg.id, subnet.id
     
-
 def get_vpc_ids(name):
     vpc = get_vpc(name)
     if vpc is None: return None
@@ -51,7 +53,7 @@ def get_ssh_command(instance):
     return f'ssh -i ~/.ssh/{instance.key_name}.pem ubuntu@{instance.public_ip_address}'
 
 def create_vpc(name):
-    cidr_block='10.0.0.0/28'
+    cidr_block='10.1.0.0/24'
     vpc = ec2.create_vpc(CidrBlock=cidr_block)
     vpc.modify_attribute(EnableDnsSupport={'Value':True})
     vpc.modify_attribute(EnableDnsHostnames={'Value':True})
@@ -61,10 +63,16 @@ def create_vpc(name):
     ig.attach_to_vpc(VpcId=vpc.id)
     ig.create_tags(Tags=[{'Key':'Name','Value':f'{name}-gateway'}])
     
-    subnet = vpc.create_subnet(CidrBlock=cidr_block)
-    subnet.create_tags(Tags=[{'Key':'Name','Value':f'{name}-subnet'}])
-    # TODO: enable public ip?
-    # subnet.meta.client.modify_subnet_attribute(SubnetId=subnet.id, MapPublicIpOnLaunch={"Value": True})
+    # Note: (AS) I have no Idea what is going on here with subnets. 
+    zones = [av['ZoneName'] for av in ec2c.describe_availability_zones()['AvailabilityZones']]
+    addr_zone = list(zip(reversed(range(0, 256, 64)), zones))
+    for addr,zone in reversed(addr_zone):
+        cidr_block = f'10.1.0.{addr}/26'
+        subnet = vpc.create_subnet(CidrBlock=cidr_block, AvailabilityZone=zone)
+        subnet.create_tags(Tags=[{'Key':'Name','Value':f'fast-ai-subnet'}])
+        subnet.create_tags(Tags=[{'Key':'Region','Value':zone}])
+        # TODO: enable public ip?
+        # subnet.meta.client.modify_subnet_attribute(SubnetId=subnet.id, MapPublicIpOnLaunch={"Value": True})
 
     rt = vpc.create_route_table()
     rt.create_tags(Tags=[{'Key':'Name','Value':f'{name}-route-table'}])
@@ -151,9 +159,9 @@ def get_spot_prices():
     return {h['InstanceType']:h['SpotPrice'] for h in hist}
 
 class LaunchSpecs:
-    def __init__(self, vpc, instance_type='t2.micro', volume_size=300, delete_ebs=True, ami=None):
+    def __init__(self, vpc, instance_type='t2.micro', volume_size=300, delete_ebs=True, ami=None, availability_zone=None):
         self.ami = ami if ami else get_ami()
-        self.sg_id, self.subnet_id = get_vpc_info(vpc)
+        self.sg_id, self.subnet_id = get_vpc_info(vpc, availability_zone=None)
         self.instance_type = instance_type
         self.device = '/dev/sda1'
         self.volume_size = volume_size
