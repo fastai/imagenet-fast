@@ -255,8 +255,8 @@ def main():
         dist.init_process_group(backend=args.dist_backend, init_method=args.dist_url,
                                 world_size=args.world_size)
 
-    if args.fp16:
-        assert torch.backends.cudnn.enabled, "fp16 mode requires cudnn backend to be enabled."
+    if args.fp16: assert torch.backends.cudnn.enabled, "fp16 mode requires cudnn backend to be enabled."
+    if args.cycle_len > 1: args.cycle_len = int(args.cycle_len)
 
     # create model
     if args.pretrained:
@@ -267,9 +267,8 @@ def main():
         model = models.__dict__[args.arch]()
 
     model = model.cuda()
-    if args.distributed:
-        model = DDP(model)
-        
+    if args.distributed: model = DDP(model)
+
     if args.train_128:
         data, train_sampler = torch_loader(f'{args.data}-160', 128)
     else:
@@ -279,13 +278,13 @@ def main():
     learner.crit = F.cross_entropy
     learner.metrics = [accuracy, top5]
     if args.fp16: learner.half()
-        
+
     if args.prof:
         args.epochs = 1
         args.cycle_len=1
     if args.use_clr:
         args.use_clr = tuple(map(float, args.use_clr.split(',')))
-    
+
     # 128x128
     if args.train_128:
         save_dir = args.save_dir+'/128'
