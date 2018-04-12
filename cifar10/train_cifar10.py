@@ -98,14 +98,19 @@ class TorchModelData(ModelData):
         super().__init__(path, trn_dl, val_dl)
         self.aug_dl = aug_dl
 
+
 def torch_loader(data_path, size):
     # Data loading code
     traindir = os.path.join(data_path, 'train')
     valdir = os.path.join(data_path, 'test')
     normalize = transforms.Normalize(mean=[0.4914 , 0.48216, 0.44653], std=[0.24703, 0.24349, 0.26159])
-
+    
+    scale_size = 40
+    padding = int((scale_size - size) / 2)
     train_tfms = transforms.Compose([
-    #   transforms.RandomResizedCrop(size),
+        transforms.RandomCrop(size, padding=padding),
+        transforms.ColorJitter(.25,.25,.25),
+        transforms.RandomRotation(2),
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
         normalize,
@@ -143,7 +148,6 @@ def torch_loader(data_path, size):
 
     data = TorchModelData(data_path, train_loader, val_loader, aug_loader)
     return data, train_sampler
-
 
 # Seems to speed up training by ~2%
 class DataPrefetcher():
