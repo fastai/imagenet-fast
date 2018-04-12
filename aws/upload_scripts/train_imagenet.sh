@@ -57,8 +57,9 @@ mkdir $SAVE_DIR
 
 echo "$(date '+%Y-%m-%d-%H-%M-%S') Instance loaded. Updating projects." |& tee -a $SAVE_DIR/script.log
 cd ~/fastai
+git stash
 git pull
-git checkout fp16
+git stash pop
 SHELL=/bin/bash
 source ~/anaconda3/bin/activate fastai && conda env update -f=environment.yml
 ln -s ~/fastai/fastai ~/anaconda3/envs/fastai/lib/python3.6/site-packages
@@ -68,7 +69,7 @@ git pull
 # Cleanup. Might not be a problem in newest AMI
 sudo apt update && sudo apt install -y libsm6 libxext6
 pip install torchtext
-pip uninstall pillow
+pip uninstall pillow --yes
 CC="cc -mavx2" pip install -U --force-reinstall pillow-simd
 # Rogue files in validation set
 rm ~/data/imagenet/val/make-data.py
