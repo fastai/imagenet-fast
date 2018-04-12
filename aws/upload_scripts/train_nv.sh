@@ -66,6 +66,8 @@ git pull
 # Cleanup. Might not be a problem in newest AMI
 sudo apt update && sudo apt install -y libsm6 libxext6
 pip install torchtext
+pip uninstall pillow
+CC="cc -mavx2" pip install -U --force-reinstall pillow-simd
 # Rogue files in validation set
 rm ~/data/imagenet/val/make-data.py
 rm ~/data/imagenet/val/valprep.sh
