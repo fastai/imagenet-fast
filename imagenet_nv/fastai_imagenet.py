@@ -99,6 +99,7 @@ __imagenet_pca = {
     ])
 }
 
+# Lighting data augmentation take from here - https://github.com/eladhoffer/convNet.pytorch/blob/master/preprocess.py
 class Lighting(object):
     """Lighting noise(AlexNet - style PCA - based noise)"""
 
@@ -127,7 +128,7 @@ def torch_loader(data_path, size):
     train_tfms = transforms.Compose([
         transforms.RandomResizedCrop(size),
         transforms.RandomHorizontalFlip(),
-        transforms.ColorJitter(.3,.3,.3),
+        transforms.ColorJitter(.4,.4,.4),
         transforms.ToTensor(),
         Lighting(0.1, __imagenet_pca['eigval'], __imagenet_pca['eigvec']),
         normalize,
@@ -215,7 +216,7 @@ def top5(output, target):
     correct_k = correct[:top5].view(-1).float().sum(0, keepdim=True)
     return correct_k.mul_(1.0 / batch_size)
 
-
+# Creating a custom logging callback. Fastai logger actually hurts performance by writing every batch.
 class ImagenetLoggingCallback(Callback):
     def __init__(self, save_path, print_every=50):
         super().__init__()
@@ -345,6 +346,7 @@ def main():
                )
     save_sched(learner.sched, args.save_dir)
 
+    # TTA works ~50% of the time. Need to change to top 5
     if args.use_tta:
         log_preds,y = learner.TTA()
         preds = np.mean(np.exp(log_preds),0)

@@ -50,6 +50,7 @@ fi
 if [[ -n "$MULTI" ]]; then
     MULTI="-m multiproc"
 fi
+# Date before project name. That way logs show up in chronological order
 TIME=$(date '+%Y-%m-%d-%H-%M-%S')
 PROJECT=$TIME-$PROJECT
 SAVE_DIR=~/$PROJECT
@@ -59,6 +60,7 @@ echo "$(date '+%Y-%m-%d-%H-%M-%S') Instance loaded. Updating projects." |& tee -
 cd ~/fastai
 git stash
 git pull
+# FP16 branch required for pytorch 0.4 builds. Models will run out of memory on validation because 0.4 doesn't support volatile
 git checkout fp16
 git stash pop
 SHELL=/bin/bash
@@ -76,9 +78,16 @@ CC="cc -mavx2" pip install -U --force-reinstall pillow-simd
 rm ~/data/imagenet/val/make-data.py
 rm ~/data/imagenet/val/valprep.sh
 rm ~/data/imagenet/val/meta.pkl
+# This image is originally a PNG. However, it did not get converted right in the resize. Ignore the iamge until AMI dataset is fixed
+mkdir $DATA_DIR-160/broken
+mv $DATA_DIR-160/train/n02105855/n02105855_2933.JPEG $DATA_DIR-160/broken
 
 if [[ -n "$WARMUP" ]]; then
     echo "$(date '+%Y-%m-%d-%H-%M-%S') Warming up volume." |& tee -a $SAVE_DIR/script.log
+    # libaio engine enables async random reads/writes. 
+    # If server bootup time doesn't matter, we can do a complete warmup by using dd and copy $DATA_DIR to /dev/null
+    # https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ebs-initialize.html 
+    # sudo dd if=$DATA_DIR of=/dev/null
     sudo apt install fio -y
     if [[ $SARGS = *"train-128"* ]]; then
         sudo fio --directory=$DATA_DIR-160 --rw=randread --bs=128k --iodepth=32 --ioengine=libaio --direct=1 --name=volume-warmup -size=40G
