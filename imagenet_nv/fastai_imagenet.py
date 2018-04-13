@@ -346,16 +346,18 @@ def main():
                )
     save_sched(learner.sched, args.save_dir)
 
-    # TTA works ~50% of the time. Need to change to top 5
+    # TTA works ~50% of the time. Hoping top5 works better
     if args.use_tta:
         log_preds,y = learner.TTA()
         preds = np.mean(np.exp(log_preds),0)
         acc = accuracy(torch.FloatTensor(preds),torch.LongTensor(y))
+        t5 = top5(torch.FloatTensor(preds),torch.LongTensor(y))
         print('TTA acc:', acc)
-
-        with open(args.save_dir+'/tta_accuracy.txt', "a", 1) as f:
-            f.write(time.strftime("%Y-%m-%dT%H:%M:%S")+f"\tTTA accuracty: {acc}\n")
+        print('TTA top5:', t5[0])
         
+        with open(args.save_dir+'/tta_accuracy.txt', "a", 1) as f:
+            f.write(time.strftime("%Y-%m-%dT%H:%M:%S")+f"\tTTA accuracy: {acc}\tTop5: {t5}")
+
     print('Finished!')
     
 main()
