@@ -11,7 +11,7 @@ parser.add_argument('-vpc', '--vpc-name', default='fast-ai', type=str,
                     help='AWS VPC to create instance on (default: fast-ai)')
 parser.add_argument('-vs', '--volume-size', default=500, type=int,
                     help='Size of ebs volume to create')
-parser.add_argument('-del', '--delete-ebs', action='store_true',
+parser.add_argument('--persist-ebs', action='store_true',
                     help='Delete ebs volume instance termination (default: True)')
 parser.add_argument('-efs', '--efs-name', type=str,
                     help='Name of efs volume to attach (default: fast-ai-efs)')
@@ -96,7 +96,7 @@ def main():
         return
     else:
         vpc = get_vpc(args.vpc_name);
-        launch_specs = LaunchSpecs(vpc, instance_type=args.instance_type, volume_size=args.volume_size, delete_ebs=args.delete_ebs, ami=args.ami)
+        launch_specs = LaunchSpecs(vpc, instance_type=args.instance_type, volume_size=args.volume_size, delete_ebs=not args.persist_ebs, ami=args.ami)
         launch_specs.volume_type = 'io1'
         instance = launch_instance(instance_name, launch_specs.build(), args.launch_method)
         
