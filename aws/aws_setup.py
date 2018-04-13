@@ -57,6 +57,10 @@ def create_vpc(name):
     ig.attach_to_vpc(VpcId=vpc.id)
     ig.create_tags(Tags=[{'Key':'Name','Value':f'{name}-gateway'}])
     
+    rt = vpc.create_route_table()
+    rt.create_tags(Tags=[{'Key':'Name','Value':f'{name}-route-table'}])
+    rt.create_route(DestinationCidrBlock='0.0.0.0/0', GatewayId=ig.id)
+
     # Note: (AS) I have no Idea what is going on here with subnets. 
     zones = [av['ZoneName'] for av in ec2c.describe_availability_zones()['AvailabilityZones']]
     addr_zone = list(zip(reversed(range(0, 256, 64)), zones))
@@ -68,10 +72,7 @@ def create_vpc(name):
         # TODO: enable public ip?
         # subnet.meta.client.modify_subnet_attribute(SubnetId=subnet.id, MapPublicIpOnLaunch={"Value": True})
 
-    rt = vpc.create_route_table()
-    rt.create_tags(Tags=[{'Key':'Name','Value':f'{name}-route-table'}])
-    rt.associate_with_subnet(SubnetId=subnet.id)
-    rt.create_route(DestinationCidrBlock='0.0.0.0/0', GatewayId=ig.id)
+        rt.associate_with_subnet(SubnetId=subnet.id)
     
     
     cidr = '0.0.0.0/0'

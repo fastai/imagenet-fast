@@ -25,6 +25,8 @@ parser.add_argument('-zone', '--availability-zone', type=str,
                     help='Availability zone to create spot instance')
 parser.add_argument('-fast', '--use-fastai', action='store_true',
                     help='Train imagenet with fastai library.')
+parser.add_argument('-c10', '--use-cifar10', action='store_true',
+                    help='Train cifar10 with fastai library.')
 parser.add_argument('-nv', '--use-nvidia', action='store_true',
                     help='Train imagenet with nvidia library.')
 parser.add_argument('-sargs', '--script-args', type=str, default='',
@@ -68,14 +70,16 @@ def attach_volumes(instance, client):
 
 def run_script(client):
     if args.use_fastai:
-        if args.run_script: print('Cannot run both run script and fastai at the same time. Ignoring run script')
-        if not args.script_args: print('Must pass in script arguments to run fastai'); return 
+        if not args.script_args: print('Must pass in script arguments to run fastai. See train_fastai.sh and fastai_imagenet.py'); return 
         args.run_script = Path.cwd()/'upload_scripts/train_imagenet.sh'
         args.script_args += f' -p {args.project_name}'
     elif args.use_nvidia:
-        if args.run_script: print('Cannot run both run script and fastai at the same time. Ignoring run script')
-        if not args.script_args: print('Must pass in script arguments to run fastai'); return
+        if not args.script_args: print('Must pass in script arguments to run nvidia. See train_nvidia.sh and main.py'); return
         args.run_script = Path.cwd()/'upload_scripts/train_nv.sh'
+        args.script_args += f' -p {args.project_name}'
+    elif args.use_cifar10:
+        if not args.script_args: print('Must pass in script arguments to run cifar10. See train_cifar10.sh and train_cifar10.py'); return
+        args.run_script = Path.cwd()/'upload_scripts/train_cifar10.sh'
         args.script_args += f' -p {args.project_name}'
 
     tsess = TmuxSession(client, 'imagenet')
