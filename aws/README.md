@@ -13,10 +13,10 @@ To setup a new VPC with EFS and EBS volumes: python_scripts/end2end_create_all.i
 To create new spot instance and mount EFS: python_scripts/end2end_demo.ipynb
 
 ### Running Fastai on Imagenet
-1. `python run_script.py -p myproject -i p2.xlarge -ami ami-b67711ce --use-fastai -sargs "-sargs '-a resnet50 -j 7 --epochs 100 -b 128 --loss-scale 128 --fp16 --world-size 8' -multi"`
-2. This should launch an instance. SSH into the box, run tmux -a. You should start to see output
+1. `python run_script.py -p myproject -iname imagenet-instance -itype p2.xlarge -ami ami-b67711ce --use-fastai -sargs "-sargs '-a resnet50 -j 7 --epochs 100 -b 128 --loss-scale 128 --fp16 --world-size 8' -multi"`
+2. This should launch an instance named {-iname}. SSH into the box, run tmux -a. You should start to see output
 
-#### Pipeline:
+#### Pipeline: `run_script.py` -> `train_imagenet.sh` -> `fastai_imagenet.py`
 Passing `--use-fastai` as an argument uploads the script `train_imagenet.sh` . 
 It then runs the script with the supplied arguments `-sargs '-a resnet50 -j 7 --epochs 1 -b 128 --loss-scale 128 --fp16 --world-size 8`, `-multi` and `-p myproject`
 
@@ -31,3 +31,6 @@ Check the header for `fastai_imagenet.py` to figure out what to pass in for `-sa
 
 ### Running `fastai_imagnet.py`
 Example usage: `python fastai_imagenet.py ~/data/imagenet -a resnet50 -j 7 --epochs 1 -b 128 --loss-scale 128 --fp16 --save-dir ~/data/test_saving`
+
+### Running `cifar10.py`
+Example command: `python run_script.py -p cifar-spot-instance1 -iname imagenet-inceptionresnet-lr2 -itype p3.2xlarge -ami ami-b67711ce  -zone us-west-2c -price 27 --launch-method find --use-cifar10 -sargs "-sargs '-a preact_resnet18 -j 7 --epochs 1 --cycle-len 5 -b 128 --loss-scale 256 --lr .5 --wd 2e-4 --use-tta 5'"`
