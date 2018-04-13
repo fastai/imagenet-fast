@@ -5,8 +5,10 @@ parser = argparse.ArgumentParser(description='Fast.ai ImageNet Training')
 
 parser.add_argument('-p', '--project-name', required=True, type=str,
                     help='Name this experiment/project. It is also the instance name')
-parser.add_argument('-i', '--instance-type', required=True, type=str,
+parser.add_argument('-itype', '--instance-type', required=True, type=str,
                     help='Instance type')
+parser.add_argument('-iname', '--instance-name', required=True, type=str,
+                    help='Instance name. We auto prepend instance with vpc name. instance-name -> fast-ai-instance-name')
 parser.add_argument('-vpc', '--vpc-name', default='fast-ai', type=str,
                     help='AWS VPC to create instance on (default: fast-ai)')
 parser.add_argument('-vs', '--volume-size', default=500, type=int,
@@ -86,7 +88,7 @@ def run_script(client):
     
 
 def main():
-    instance_name = f'{args.vpc_name}-{args.project_name}'
+    instance_name = f'{args.vpc_name}-{args.instance_name}'
     instance = get_instance(instance_name)
     if instance: 
         print(f'Instance found with name: {instance_name}. Connecting to this instead')

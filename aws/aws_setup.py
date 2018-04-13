@@ -27,12 +27,6 @@ def get_vpc_info(vpc, availability_zone=None):
     except Exception as e:
         print('Could not get VPC info: ', e)
     return sg.id, subnet.id
-    
-def get_vpc_ids(name):
-    vpc = get_vpc(name)
-    if vpc is None: return None
-    sg_id, subnet_id = get_vpc_info(vpc)
-    return vpc.id, sg_id, subnet_id
 
 def create_ec2_keypair(name):
     ssh_dir = Path.home()/'.ssh'
@@ -161,7 +155,7 @@ def get_spot_prices():
 class LaunchSpecs:
     def __init__(self, vpc, instance_type='t2.micro', volume_size=300, delete_ebs=True, ami=None, availability_zone=None):
         self.ami = ami if ami else get_ami()
-        self.sg_id, self.subnet_id = get_vpc_info(vpc, availability_zone=None)
+        self.sg_id, self.subnet_id = get_vpc_info(vpc, availability_zone=availability_zone)
         self.instance_type = instance_type
         self.device = '/dev/sda1'
         self.volume_size = volume_size
