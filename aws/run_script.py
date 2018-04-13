@@ -21,6 +21,8 @@ parser.add_argument('-ebs', '--ebs-name', type=str,
                     help='Name of ebs volume to attach.')
 parser.add_argument('-r', '--run-script', type=str,
                     help='Run custom script')
+parser.add_argument('-zone', '--availability-zone', type=str,
+                    help='Availability zone to create spot instance')
 parser.add_argument('-fast', '--use-fastai', action='store_true',
                     help='Train imagenet with fastai library.')
 parser.add_argument('-nv', '--use-nvidia', action='store_true',
@@ -98,7 +100,7 @@ def main():
         return
     else:
         vpc = get_vpc(args.vpc_name);
-        launch_specs = LaunchSpecs(vpc, instance_type=args.instance_type, volume_size=args.volume_size, delete_ebs=not args.persist_ebs, ami=args.ami)
+        launch_specs = LaunchSpecs(vpc, instance_type=args.instance_type, volume_size=args.volume_size, delete_ebs=not args.persist_ebs, ami=args.ami, availability_zone=args.availability_zone)
         launch_specs.volume_type = 'io1'
         instance = launch_instance(instance_name, launch_specs.build(), args.launch_method)
         
