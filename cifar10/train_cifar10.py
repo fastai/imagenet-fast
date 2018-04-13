@@ -8,6 +8,8 @@ from fastai.dataset import *
 from fastai.fp16 import *
 from fastai.conv_learner import *
 from pathlib import *
+from fastai import io
+import tarfile
 
 import torch
 from torch.autograd import Variable
@@ -98,8 +100,26 @@ class TorchModelData(ModelData):
         super().__init__(path, trn_dl, val_dl)
         self.aug_dl = aug_dl
 
+def download_cifar10(data_path):
+    # (AS) TODO: put this into the fastai library
+    def untar_file(file_path, save_path):
+        if file_path.endswith('.tar.gz') or file_path.endswith('.tgz'):
+            obj = tarfile.open(file_path)
+            obj.extractall(save_path)
+            obj.close()
+            os.remove(file_path)
+        
+    cifar_url = 'http://files.fast.ai/data/cifar10.tgz' # faster download
+    # cifar_url = 'http://pjreddie.com/media/files/cifar.tgz'
+    io.get_data(cifar_url, args.data+'/cifar10.tgz')
+    untar_file(data_path+'/cifar10.tgz', data_path)
+    # Loader expects train and test folders to be outside of cifar10 folder
+    shutil.move(data_path+'/cifar10/train', data_path)
+    shutil.move(data_path+'/cifar10/test', data_path)
 
 def torch_loader(data_path, size):
+    if not os.path.exists(data_path+'/train'): download_cifar10(data_path)
+
     # Data loading code
     traindir = os.path.join(data_path, 'train')
     valdir = os.path.join(data_path, 'test')
@@ -321,3 +341,5 @@ def main():
 
         with open(args.save_dir+'/tta_accuracy.txt', "a", 1) as f:
             f.write(time.strftime("%Y-%m-%dT%H:%M:%S")+f"\tTTA accuracty: {acc}\n")
+
+main()
