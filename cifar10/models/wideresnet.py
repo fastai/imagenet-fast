@@ -76,3 +76,6 @@ class WideResNet(nn.Module):
         out = F.adaptive_avg_pool2d(out, 1)
         out = out.view(-1, self.nChannels)
         return self.fc(out)
+
+def wrn_22(): return WideResNet(depth=22, num_classes=10, widen_factor=6, dropRate=0.)
+

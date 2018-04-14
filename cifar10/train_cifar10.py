@@ -52,6 +52,7 @@ parser.add_argument('--arch', '-a', metavar='ARCH', default='resnet56',
                     help='model architecture: ' +
                     ' | '.join(model_names) +
                     ' (default: resnet56)')
+parser.add_argument('--data-parallel', default=False, type=bool, help='Use DataParallel')
 parser.add_argument('-j', '--workers', default=7, type=int, metavar='N',
                     help='number of data loading workers (default: 4)')
 parser.add_argument('--epochs', default=1, type=int, metavar='N',
@@ -95,10 +96,14 @@ parser.add_argument('--rank', default=0, type=int,
                     help='Used for multi-process training. Can either be manually set ' +
                     'or automatically set by using \'python -m multiproc\'.')
 
+def pad(img, p=4, padding_mode='reflect'):
+        return Image.fromarray(np.pad(np.asarray(img), ((p, p), (p, p), (0, 0)), padding_mode))
+
 class TorchModelData(ModelData):
-    def __init__(self, path, trn_dl, val_dl, aug_dl=None):
+    def __init__(self, path, sz, trn_dl, val_dl, aug_dl=None):
         super().__init__(path, trn_dl, val_dl)
         self.aug_dl = aug_dl
+        self.sz = sz
 
 def download_cifar10(data_path):
     # (AS) TODO: put this into the fastai library
@@ -124,17 +129,17 @@ def torch_loader(data_path, size):
     traindir = os.path.join(data_path, 'train')
     valdir = os.path.join(data_path, 'test')
     normalize = transforms.Normalize(mean=[0.4914 , 0.48216, 0.44653], std=[0.24703, 0.24349, 0.26159])
+    tfms = [transforms.ToTensor(), normalize]
 
     scale_size = 40
     padding = int((scale_size - size) / 2)
     train_tfms = transforms.Compose([
-        transforms.RandomCrop(size, padding=padding),
+        pad, # TODO: use `padding` rather than assuming 4
+        transforms.RandomCrop(size),
         transforms.ColorJitter(.25,.25,.25),
         transforms.RandomRotation(2),
         transforms.RandomHorizontalFlip(),
-        transforms.ToTensor(),
-        normalize,
-    ])
+    ] + tfms)
     train_dataset = datasets.ImageFolder(traindir, train_tfms)
     train_sampler = (torch.utils.data.distributed.DistributedSampler(train_dataset)
                      if args.distributed else None)
@@ -142,12 +147,7 @@ def torch_loader(data_path, size):
         train_dataset, batch_size=args.batch_size, shuffle=(train_sampler is None),
         num_workers=args.workers, pin_memory=True, sampler=train_sampler)
 
-    val_tfms = transforms.Compose([
-    #   transforms.Resize(int(size*1.14)),
-    #   transforms.CenterCrop(size),
-        transforms.ToTensor(),
-        normalize,
-    ])
+    val_tfms = transforms.Compose(tfms)
     val_loader = torch.utils.data.DataLoader(
         datasets.ImageFolder(valdir, val_tfms),
         batch_size=args.batch_size, shuffle=False,
@@ -166,7 +166,7 @@ def torch_loader(data_path, size):
         train_loader.stop_after = 200
         val_loader.stop_after = 0
 
-    data = TorchModelData(data_path, train_loader, val_loader, aug_loader)
+    data = TorchModelData(data_path, args.sz, train_loader, val_loader, aug_loader)
     return data, train_sampler
 
 # Seems to speed up training by ~2%
@@ -296,6 +296,7 @@ def main():
 
     model = model.cuda()
     if args.distributed: model = DDP(model)
+    if args.data_parallel: model = nn.DataParallel(model, [0,1,2,3])
 
     data, train_sampler = torch_loader(args.data, args.sz)
 
@@ -310,6 +311,10 @@ def main():
     # Full size
     update_model_dir(learner, args.save_dir)
     sargs = save_args('first_run', args.save_dir)
+    # warm up
+    learner.fit(args.lr/10, 1, cycle_len=1, sampler=train_sampler, wds=args.weight_decay,
+                use_clr_beta=(100,1,0.9,0.8), loss_scale=args.loss_scale, **sargs)
+
     learner.fit(args.lr,args.epochs, cycle_len=args.cycle_len,
                 sampler=train_sampler, wds=args.weight_decay,
                 use_clr_beta=args.use_clr, loss_scale=args.loss_scale,
@@ -324,7 +329,7 @@ def main():
         acc = accuracy(torch.FloatTensor(preds),torch.LongTensor(y))
         print('TTA acc:', acc)
 
-        with open(args.save_dir+'/tta_accuracy.txt', "a", 1) as f:
+        with open(f'{args.save_dir}/tta_accuracy.txt', "a", 1) as f:
             f.write(time.strftime("%Y-%m-%dT%H:%M:%S")+f"\tTTA accuracty: {acc}\n")
 
 main()

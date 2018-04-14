@@ -1,3 +1,4 @@
+from .wideresnet import *
 from .resnet import *
 from .dpn import *
 from .se_resnet import *
