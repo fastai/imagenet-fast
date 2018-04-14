@@ -78,7 +78,7 @@ parser.add_argument('--fp16', action='store_true', help='Run model fp16 mode.')
 parser.add_argument('--use-tta', default=True, type=bool, help='Validate model with TTA at the end of traiing.')
 parser.add_argument('--sz',       default=32, type=int, help='Size of transformed image.')
 # parser.add_argument('--decay-int', default=30, type=int, help='Decay LR by 10 every decay-int epochs')
-parser.add_argument('--use-clr', default='10,13.68,0.95,0.85', type=str, 
+parser.add_argument('--use-clr', default='10,13.68,0.95,0.85', type=str,
                     help='div,pct,max_mom,min_mom. Pass in a string delimited by commas. Ex: "20,2,0.95,0.85"')
 parser.add_argument('--loss-scale', type=float, default=128,
                     help='Loss scaling, positive power of 2 values can improve fp16 convergence.')
@@ -108,7 +108,7 @@ def download_cifar10(data_path):
             obj.extractall(save_path)
             obj.close()
             os.remove(file_path)
-        
+
     cifar_url = 'http://files.fast.ai/data/cifar10.tgz' # faster download
     # cifar_url = 'http://pjreddie.com/media/files/cifar.tgz'
     io.get_data(cifar_url, args.data+'/cifar10.tgz')
@@ -124,7 +124,7 @@ def torch_loader(data_path, size):
     traindir = os.path.join(data_path, 'train')
     valdir = os.path.join(data_path, 'test')
     normalize = transforms.Normalize(mean=[0.4914 , 0.48216, 0.44653], std=[0.24703, 0.24349, 0.26159])
-    
+
     scale_size = 40
     padding = int((scale_size - size) / 2)
     train_tfms = transforms.Compose([
@@ -181,7 +181,7 @@ class DataPrefetcher():
 
     def __len__(self):
         return len(self.loader)
-    
+
     def preload(self):
         try:
             self.next_input, self.next_target = next(self.loaditer)
@@ -206,7 +206,7 @@ class DataPrefetcher():
             yield input, target
             if type(self.stop_after) is int and (count > self.stop_after):
                 break
-                
+
 def top5(output, target):
     """Computes the precision@k for the specified values of k"""
     top5 = 5
@@ -270,69 +270,54 @@ def update_model_dir(learner, base_dir):
     os.makedirs(learner.tmp_path, exist_ok=True)
     learner.models_path = f'{base_dir}/models'
     os.makedirs(learner.models_path, exist_ok=True)
-    
+
 
 # This is important for speed
 cudnn.benchmark = True
 global arg
 args = parser.parse_args(); args
 if args.cycle_len > 1: args.cycle_len = int(args.cycle_len)
-    
+
 def main():
     args.distributed = args.world_size > 1
     args.gpu = 0
-    if args.distributed:
-        args.gpu = args.rank % torch.cuda.device_count()
+    if args.distributed: args.gpu = args.rank % torch.cuda.device_count()
 
     if args.distributed:
         torch.cuda.set_device(args.gpu)
         dist.init_process_group(backend=args.dist_backend, init_method=args.dist_url,
                                 world_size=args.world_size)
 
-    if args.fp16:
-        assert torch.backends.cudnn.enabled, "fp16 mode requires cudnn backend to be enabled."
-        
-    # create model
-    model = cifar10models.__dict__[args.arch] if args.arch in cifar10_names else models.__dict__[args.arch] 
-    if args.pretrained:
-        print("=> using pre-trained model '{}'".format(args.arch))
-        model = model(pretrained=True)
-    else:
-        print("=> creating model '{}'".format(args.arch))
-        model = model()
-        
+    if args.fp16: assert torch.backends.cudnn.enabled, "missing cudnn"
+
+    model = cifar10models.__dict__[args.arch] if args.arch in cifar10_names else models.__dict__[args.arch]
+    if args.pretrained: model = model(pretrained=True)
+    else: model = model()
+
     model = model.cuda()
-    if args.distributed:
-        model = DDP(model)
-        
+    if args.distributed: model = DDP(model)
+
     data, train_sampler = torch_loader(args.data, args.sz)
 
     learner = Learner.from_model_data(model, data)
-    # learner.crit = F.nll_loss
     learner.crit = F.cross_entropy
     learner.metrics = [accuracy]
     if args.fp16: learner.half()
 
-    if args.prof:
-        args.epochs = 1
-        args.cycle_len=.01
-    if args.use_clr:
-        args.use_clr = tuple(map(float, args.use_clr.split(',')))
-        
+    if args.prof: args.epochs,args.cycle_len = 1,0.01
+    if args.use_clr: args.use_clr = tuple(map(float, args.use_clr.split(',')))
+
     # Full size
     update_model_dir(learner, args.save_dir)
     sargs = save_args('first_run', args.save_dir)
     learner.fit(args.lr,args.epochs, cycle_len=args.cycle_len,
-                sampler=train_sampler,
-                wds=args.weight_decay,
-                use_clr_beta=args.use_clr,
-                loss_scale=args.loss_scale,
-                **sargs
-               )
+                sampler=train_sampler, wds=args.weight_decay,
+                use_clr_beta=args.use_clr, loss_scale=args.loss_scale,
+                **sargs)
     save_sched(learner.sched, args.save_dir)
 
     print('Finished!')
-    
+
     if args.use_tta:
         log_preds,y = learner.TTA()
         preds = np.mean(np.exp(log_preds),0)
