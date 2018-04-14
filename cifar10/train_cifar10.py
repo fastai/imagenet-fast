@@ -62,7 +62,7 @@ parser.add_argument('--cycle-len', default=95, type=float, metavar='N',
 # parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
 #                     help='manual epoch number (useful on restarts)')
 parser.add_argument('-b', '--batch-size', default=512, type=int,
-                    metavar='N', help='mini-batch size (default: 256)')
+                    metavar='N', help='mini-batch size (default: 512)')
 parser.add_argument('--lr', '--learning-rate', default=0.8, type=float,
                     metavar='LR', help='initial learning rate')
 parser.add_argument('--momentum', default=0.9, type=float, metavar='M', help='momentum')
@@ -76,19 +76,18 @@ parser.add_argument('--weight-decay', '--wd', default=1e-4, type=float,
 #                     help='evaluate model on validation set')
 parser.add_argument('--pretrained', dest='pretrained', action='store_true', help='use pre-trained model')
 parser.add_argument('--fp16', action='store_true', help='Run model fp16 mode.')
-parser.add_argument('--use-tta', default=True, type=bool, help='Validate model with TTA at the end of traiing.')
+parser.add_argument('--use-tta', default=False, type=bool, help='Validate model with TTA at the end of traiing.')
 parser.add_argument('--sz',       default=32, type=int, help='Size of transformed image.')
 # parser.add_argument('--decay-int', default=30, type=int, help='Decay LR by 10 every decay-int epochs')
 parser.add_argument('--use-clr', default='10,13.68,0.95,0.85', type=str,
                     help='div,pct,max_mom,min_mom. Pass in a string delimited by commas. Ex: "20,2,0.95,0.85"')
 parser.add_argument('--loss-scale', type=float, default=128,
                     help='Loss scaling, positive power of 2 values can improve fp16 convergence.')
+parser.add_argument('--warmup', action='store_true', help='Do a warm-up epoch first')
 parser.add_argument('--prof', dest='prof', action='store_true', help='Only run a few iters for profiling.')
-
 parser.add_argument('--dist-url', default='file://sync.file', type=str,
                     help='url used to set up distributed training')
 parser.add_argument('--dist-backend', default='nccl', type=str, help='distributed backend')
-
 parser.add_argument('--world-size', default=1, type=int,
                     help='Number of GPUs to use. Can either be manually set ' +
                     'or automatically set by using \'python -m multiproc\'.')
@@ -150,7 +149,7 @@ def torch_loader(data_path, size):
     val_tfms = transforms.Compose(tfms)
     val_loader = torch.utils.data.DataLoader(
         datasets.ImageFolder(valdir, val_tfms),
-        batch_size=args.batch_size, shuffle=False,
+        batch_size=args.batch_size*2, shuffle=False,
         num_workers=args.workers, pin_memory=True)
 
 
@@ -275,7 +274,8 @@ def update_model_dir(learner, base_dir):
 # This is important for speed
 cudnn.benchmark = True
 global arg
-args = parser.parse_args(); args
+args = parser.parse_args()
+#print(args); exit()
 if args.cycle_len > 1: args.cycle_len = int(args.cycle_len)
 
 def main():
@@ -301,6 +301,7 @@ def main():
     data, train_sampler = torch_loader(args.data, args.sz)
 
     learner = Learner.from_model_data(model, data)
+    #print (learner.summary()); exit()
     learner.crit = F.cross_entropy
     learner.metrics = [accuracy]
     if args.fp16: learner.half()
@@ -311,8 +312,9 @@ def main():
     # Full size
     update_model_dir(learner, args.save_dir)
     sargs = save_args('first_run', args.save_dir)
-    # warm up
-    learner.fit(args.lr/10, 1, cycle_len=1, sampler=train_sampler, wds=args.weight_decay,
+
+    if args.warmup:
+        learner.fit(args.lr/10, 1, cycle_len=1, sampler=train_sampler, wds=args.weight_decay,
                 use_clr_beta=(100,1,0.9,0.8), loss_scale=args.loss_scale, **sargs)
 
     learner.fit(args.lr,args.epochs, cycle_len=args.cycle_len,
