@@ -269,7 +269,7 @@ def update_model_dir(learner, base_dir):
     os.makedirs(learner.tmp_path, exist_ok=True)
     learner.models_path = f'{base_dir}/models'
     os.makedirs(learner.models_path, exist_ok=True)
-    
+
 # This is important for speed
 cudnn.benchmark = True
 global args
@@ -279,32 +279,24 @@ print('Running script with args:', args)
 def main():
     args.distributed = args.world_size > 1
     args.gpu = 0
-    if args.distributed:
-        args.gpu = args.rank % torch.cuda.device_count()
+    if args.distributed: args.gpu = args.rank % torch.cuda.device_count()
 
     if args.distributed:
         torch.cuda.set_device(args.gpu)
-        dist.init_process_group(backend=args.dist_backend, init_method=args.dist_url,
-                                world_size=args.world_size)
+        dist.init_process_group(backend=args.dist_backend, init_method=args.dist_url, world_size=args.world_size)
 
     if args.fp16: assert torch.backends.cudnn.enabled, "fp16 mode requires cudnn backend to be enabled."
     if args.cycle_len > 1: args.cycle_len = int(args.cycle_len)
 
     # create model
-    if args.pretrained:
-        print("=> using pre-trained model '{}'".format(args.arch))
-        model = models.__dict__[args.arch](pretrained=True)
-    else:
-        print("=> creating model '{}'".format(args.arch))
-        model = models.__dict__[args.arch]()
+    if args.pretrained: model = models.__dict__[args.arch](pretrained=True)
+    else:               model = models.__dict__[args.arch]()
 
     model = model.cuda()
     if args.distributed: model = DDP(model)
 
-    if args.train_128:
-        data, train_sampler = torch_loader(f'{args.data}-160', 128)
-    else:
-        data, train_sampler = torch_loader(args.data, args.sz)
+    if args.train_128: data, train_sampler = torch_loader(f'{args.data}-160', 128)
+    else:              data, train_sampler = torch_loader(args.data, args.sz)
 
     learner = Learner.from_model_data(model, data)
     learner.crit = F.cross_entropy
@@ -314,21 +306,16 @@ def main():
     if args.prof:
         args.epochs = 1
         args.cycle_len=1
-    if args.use_clr:
-        args.use_clr = tuple(map(float, args.use_clr.split(',')))
+    if args.use_clr: args.use_clr = tuple(map(float, args.use_clr.split(',')))
 
     # 128x128
     if args.train_128:
-        save_dir = args.save_dir+'/128'
+        save_dir = f'{args.save_dir}/128'
         update_model_dir(learner, save_dir)
         sargs = save_args('first_run_128', save_dir)
         learner.fit(args.lr,args.epochs, cycle_len=args.cycle_len,
-                    sampler=train_sampler,
-                    wds=args.weight_decay,
-                    use_clr_beta=args.use_clr,
-                    loss_scale=args.loss_scale,
-                    **sargs
-                )
+                    sampler=train_sampler, wds=args.weight_decay, use_clr_beta=args.use_clr,
+                    loss_scale=args.loss_scale, **sargs)
         save_sched(learner.sched, save_dir)
         data, train_sampler = torch_loader(args.data, args.sz)
         learner.set_data(data)
@@ -338,12 +325,8 @@ def main():
     update_model_dir(learner, args.save_dir)
     sargs = save_args('first_run', args.save_dir)
     learner.fit(args.lr,args.epochs, cycle_len=args.cycle_len,
-                sampler=train_sampler,
-                wds=args.weight_decay,
-                use_clr_beta=args.use_clr,
-                loss_scale=args.loss_scale,
-                **sargs
-               )
+                sampler=train_sampler, wds=args.weight_decay, use_clr_beta=args.use_clr,
+                loss_scale=args.loss_scale, **sargs)
     save_sched(learner.sched, args.save_dir)
 
     # TTA works ~50% of the time. Hoping top5 works better
@@ -354,10 +337,10 @@ def main():
         t5 = top5(torch.FloatTensor(preds),torch.LongTensor(y))
         print('TTA acc:', acc)
         print('TTA top5:', t5[0])
-        
-        with open(args.save_dir+'/tta_accuracy.txt', "a", 1) as f:
+
+        with open(f'{args.save_dir}/tta_accuracy.txt', "a", 1) as f:
             f.write(time.strftime("%Y-%m-%dT%H:%M:%S")+f"\tTTA accuracy: {acc}\tTop5: {t5}")
 
     print('Finished!')
-    
+
 main()

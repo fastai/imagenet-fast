@@ -95,6 +95,8 @@ class PreActResNet(nn.Module):
         return F.log_softmax(self.linear(out))
 
 def preact_resnet18(): return PreActResNet(PreActBlock, [2,2,2,2])
+def preact_resnet2332(): return PreActResNet(PreActBlock, [2,3,3,2])
+def preact_resnet3333(): return PreActResNet(PreActBlock, [3,3,3,3])
 def preact_resnet34(): return PreActResNet(PreActBlock, [3,4,6,3])
 def preact_resnet50(): return PreActResNet(PreActBottleneck, [3,4,6,3])
 def preActResNet101(): return PreActResNet(PreActBottleneck, [3,4,23,3])
