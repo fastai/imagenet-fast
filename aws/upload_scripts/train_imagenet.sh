@@ -71,7 +71,6 @@ source ~/anaconda3/bin/activate fastai && conda env update -f=environment.yml
 ln -s ~/fastai/fastai ~/anaconda3/envs/fastai/lib/python3.6/site-packages
 cd ~/git/imagenet-fast/imagenet_nv
 git pull
-git checkout checkpoint
 
 # Cleanup. Might not be a problem in newest AMI
 sudo apt update && sudo apt install -y libsm6 libxext6
