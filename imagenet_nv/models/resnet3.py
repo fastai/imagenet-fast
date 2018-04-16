@@ -24,6 +24,7 @@ def bn(ni, init_zero=False):
     m = nn.BatchNorm2d(ni)
     m.weight.data.fill_(0 if init_zero else 1)
     m.bias.data.zero_()
+    return m
 
 class BasicBlock(nn.Module):
     expansion = 1
