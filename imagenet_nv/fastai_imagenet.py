@@ -307,6 +307,7 @@ def main():
     if args.resume:
         if os.path.isfile(args.resume):
             print("=> loading checkpoint '{}'".format(args.resume))
+            if args.resume.endswith('.h5'): args.resume = args.resume[:-len('.h5')]
             learner.load(args.resume)
         else: print("=> no checkpoint found at '{}'".format(args.resume))    
 
