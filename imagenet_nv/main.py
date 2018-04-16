@@ -1,7 +1,4 @@
-import argparse
-import os
-import shutil
-import time
+import argparse, os, shutil, time, warnings
 from pathlib import Path
 import numpy as np
 
@@ -25,62 +22,88 @@ model_names = sorted(name for name in models.__dict__
                      and callable(models.__dict__[name]))
 #print(model_names)
 
-parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')
-parser.add_argument('data', metavar='DIR',
-                    help='path to dataset')
-parser.add_argument('--save-dir', type=str, default=Path.cwd(),
-                    help='Directory to save logs and models.')
-parser.add_argument('--arch', '-a', metavar='ARCH', default='resnet18',
-                    choices=model_names,
-                    help='model architecture: ' +
-                    ' | '.join(model_names) +
-                    ' (default: resnet18)')
-parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
-                    help='number of data loading workers (default: 4)')
-parser.add_argument('--epochs', default=90, type=int, metavar='N',
-                    help='number of total epochs to run')
-parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
-                    help='manual epoch number (useful on restarts)')
-parser.add_argument('-b', '--batch-size', default=256, type=int,
-                    metavar='N', help='mini-batch size (default: 256)')
-parser.add_argument('--lr', '--learning-rate', default=0.1, type=float,
-                    metavar='LR', help='initial learning rate')
-parser.add_argument('--momentum', default=0.9, type=float, metavar='M', help='momentum')
-parser.add_argument('--weight-decay', '--wd', default=1e-4, type=float,
-                    metavar='W', help='weight decay (default: 1e-4)')
-parser.add_argument('--print-freq', '-p', default=10, type=int,
-                    metavar='N', help='print frequency (default: 10)')
-parser.add_argument('--resume', default='', type=str, metavar='PATH',
-                    help='path to latest checkpoint (default: none)')
-parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true',
-                    help='evaluate model on validation set')
-parser.add_argument('--pretrained', dest='pretrained', action='store_true', help='use pre-trained model')
-parser.add_argument('--fp16', action='store_true', help='Run model fp16 mode.')
-parser.add_argument('--dp', action='store_true', help='Run model fp16 mode.')
-parser.add_argument('--sz',       default=224, type=int, help='Size of transformed image.')
-parser.add_argument('--decay-int', default=30, type=int, help='Decay LR by 10 every decay-int epochs')
-parser.add_argument('--loss-scale', type=float, default=1,
-                    help='Loss scaling, positive power of 2 values can improve fp16 convergence.')
-parser.add_argument('--prof', dest='prof', action='store_true', help='Only run a few iters for profiling.')
+def get_parser():
+    parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')
+    parser.add_argument('data', metavar='DIR',
+                        help='path to dataset')
+    parser.add_argument('--save-dir', type=str, default=Path.cwd(),
+                        help='Directory to save logs and models.')
+    parser.add_argument('--arch', '-a', metavar='ARCH', default='resnet18',
+                        choices=model_names,
+                        help='model architecture: ' +
+                        ' | '.join(model_names) +
+                        ' (default: resnet18)')
+    parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
+                        help='number of data loading workers (default: 4)')
+    parser.add_argument('--epochs', default=90, type=int, metavar='N',
+                        help='number of total epochs to run')
+    parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
+                        help='manual epoch number (useful on restarts)')
+    parser.add_argument('-b', '--batch-size', default=256, type=int,
+                        metavar='N', help='mini-batch size (default: 256)')
+    parser.add_argument('--lr', '--learning-rate', default=0.1, type=float,
+                        metavar='LR', help='initial learning rate')
+    parser.add_argument('--momentum', default=0.9, type=float, metavar='M', help='momentum')
+    parser.add_argument('--weight-decay', '--wd', default=1e-4, type=float,
+                        metavar='W', help='weight decay (default: 1e-4)')
+    parser.add_argument('--print-freq', '-p', default=10, type=int,
+                        metavar='N', help='print frequency (default: 10)')
+    parser.add_argument('--resume', default='', type=str, metavar='PATH',
+                        help='path to latest checkpoint (default: none)')
+    parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true',
+                        help='evaluate model on validation set')
+    parser.add_argument('--pretrained', dest='pretrained', action='store_true', help='use pre-trained model')
+    parser.add_argument('--fp16', action='store_true', help='Run model fp16 mode.')
+    parser.add_argument('--dp', action='store_true', help='Run model fp16 mode.')
+    parser.add_argument('--sz',       default=224, type=int, help='Size of transformed image.')
+    parser.add_argument('--decay-int', default=30, type=int, help='Decay LR by 10 every decay-int epochs')
+    parser.add_argument('--loss-scale', type=float, default=1,
+                        help='Loss scaling, positive power of 2 values can improve fp16 convergence.')
+    parser.add_argument('--prof', dest='prof', action='store_true', help='Only run a few iters for profiling.')
 
-parser.add_argument('--dist-url', default='file://sync.file', type=str,
-                    help='url used to set up distributed training')
-parser.add_argument('--dist-backend', default='nccl', type=str, help='distributed backend')
+    parser.add_argument('--dist-url', default='file://sync.file', type=str,
+                        help='url used to set up distributed training')
+    parser.add_argument('--dist-backend', default='nccl', type=str, help='distributed backend')
 
-parser.add_argument('--world-size', default=1, type=int,
-                    help='Number of GPUs to use. Can either be manually set ' +
-                    'or automatically set by using \'python -m multiproc\'.')
-parser.add_argument('--rank', default=0, type=int,
-                    help='Used for multi-process training. Can either be manually set ' +
-                    'or automatically set by using \'python -m multiproc\'.')
+    parser.add_argument('--world-size', default=1, type=int,
+                        help='Number of GPUs to use. Can either be manually set ' +
+                        'or automatically set by using \'python -m multiproc\'.')
+    parser.add_argument('--rank', default=0, type=int,
+                        help='Used for multi-process training. Can either be manually set ' +
+                        'or automatically set by using \'python -m multiproc\'.')
 
 cudnn.benchmark = True
+args = get_parser().parse_args()
 
-best_prec1 = 0
-args = parser.parse_args()
+def get_loaders(traindir, valdir):
+    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    tensor_tfm = [transforms.ToTensor(), normalize]
+
+    train_dataset = datasets.ImageFolder(
+        traindir,
+        transforms.Compose([
+            transforms.RandomResizedCrop(args.sz),
+            transforms.RandomHorizontalFlip(),
+        ] + tensor_tfm))
+
+    train_sampler = (torch.utils.data.distributed.DistributedSampler(train_dataset) if args.distributed else None)
+
+    train_loader = torch.utils.data.DataLoader(
+        train_dataset, batch_size=args.batch_size, shuffle=(train_sampler is None),
+        num_workers=args.workers, pin_memory=True, sampler=train_sampler)
+
+    val_loader = torch.utils.data.DataLoader(
+        datasets.ImageFolder(valdir, transforms.Compose([
+            transforms.Resize(int(args.sz*1.14)),
+            transforms.CenterCrop(args.sz),
+        ] + tensor_tfm)),
+        batch_size=args.batch_size*2, shuffle=False,
+        num_workers=args.workers, pin_memory=False)
+
+    return traindir, valdir
+
+
 def main():
-    global best_prec1, args
-
     args.distributed = args.world_size > 1
     args.gpu = 0
     if args.distributed:
@@ -88,27 +111,19 @@ def main():
         torch.cuda.set_device(args.gpu)
         dist.init_process_group(backend=args.dist_backend, init_method=args.dist_url, world_size=args.world_size)
 
-    if args.fp16:
-        assert torch.backends.cudnn.enabled, "fp16 mode requires cudnn backend to be enabled."
+    if args.fp16: assert torch.backends.cudnn.enabled, "fp16 mode requires cudnn backend to be enabled."
 
     # create model
-    if args.pretrained:
-        print("=> using pre-trained model '{}'".format(args.arch))
-        model = models.__dict__[args.arch](pretrained=True)
-    else:
-        print("=> creating model '{}'".format(args.arch))
-        model = models.__dict__[args.arch]()
+    if args.pretrained: model = models.__dict__[args.arch](pretrained=True)
+    else: model = models.__dict__[args.arch]()
 
     model = model.cuda()
     n_dev = torch.cuda.device_count()
     if args.fp16: model = network_to_half(model)
-    if args.distributed:
-        model = DDP(model)
-        #args.lr *= n_dev
+    if args.distributed: model = DDP(model)
     elif args.dp:
         model = nn.DataParallel(model)
         args.batch_size *= n_dev
-        #args.lr *= n_dev
 
     global param_copy
     if args.fp16:
@@ -120,74 +135,40 @@ def main():
     criterion = nn.CrossEntropyLoss().cuda()
     optimizer = torch.optim.SGD(param_copy, args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
 
+    best_prec1 = 0
     # optionally resume from a checkpoint
     if args.resume:
         if os.path.isfile(args.resume):
-            print("=> loading checkpoint '{}'".format(args.resume))
             checkpoint = torch.load(args.resume, map_location = lambda storage, loc: storage.cuda(args.gpu))
             args.start_epoch = checkpoint['epoch']
             best_prec1 = checkpoint['best_prec1']
             model.load_state_dict(checkpoint['state_dict'])
             optimizer.load_state_dict(checkpoint['optimizer'])
-            print("=> loaded checkpoint '{}' (epoch {})"
-                  .format(args.resume, checkpoint['epoch']))
         else: print("=> no checkpoint found at '{}'".format(args.resume))
 
-    # Data loading code
     traindir = os.path.join(args.data, 'train')
     valdir = os.path.join(args.data, 'val')
-    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-    tensor_tfm = transforms.ToTensor()
+    train_loader,val_loader = get_loaders(traindir, valdir)
 
-    train_dataset = datasets.ImageFolder(
-        traindir,
-        transforms.Compose([
-            transforms.RandomResizedCrop(args.sz),
-            transforms.RandomHorizontalFlip(),
-            tensor_tfm, normalize
-        ]))
-
-    train_sampler = (torch.utils.data.distributed.DistributedSampler(train_dataset)
-                     if args.distributed else None)
-
-    train_loader = torch.utils.data.DataLoader(
-        train_dataset, batch_size=args.batch_size, shuffle=(train_sampler is None),
-        num_workers=args.workers, pin_memory=True, sampler=train_sampler)
-
-    val_loader = torch.utils.data.DataLoader(
-        datasets.ImageFolder(valdir, transforms.Compose([
-            transforms.Resize(int(args.sz*1.14)),
-            transforms.CenterCrop(args.sz),
-            transforms.ToTensor(),
-            tensor_tfm, normalize
-        ])),
-        batch_size=args.batch_size, shuffle=False,
-        num_workers=args.workers, pin_memory=False)
-
-    if args.evaluate:
-        validate(val_loader, model, criterion)
-        return
+    if args.evaluate: return validate(val_loader, model, criterion)
 
     for epoch in range(args.start_epoch, args.epochs):
         if args.distributed: train_sampler.set_epoch(epoch)
         adjust_learning_rate(optimizer, epoch)
 
-        # train for one epoch
-        train(train_loader, model, criterion, optimizer, epoch)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=UserWarning)
+            train(train_loader, model, criterion, optimizer, epoch)
+
         if args.prof: break
-        # evaluate on validation set
         prec1 = validate(val_loader, model, criterion)
 
-        # remember best prec@1 and save checkpoint
         if args.rank == 0:
             is_best = prec1 > best_prec1
             best_prec1 = max(prec1, best_prec1)
             save_checkpoint({
-                'epoch': epoch + 1,
-                'arch': args.arch,
-                'state_dict': model.state_dict(),
-                'best_prec1': best_prec1,
-                'optimizer' : optimizer.state_dict(),
+                'epoch': epoch + 1, 'arch': args.arch, 'state_dict': model.state_dict(),
+                'best_prec1': best_prec1, 'optimizer' : optimizer.state_dict(),
             }, is_best)
 
 # item() is a recent addition, so this helps with backward compatibility.
@@ -198,7 +179,7 @@ def to_python_float(t):
         return t[0]
 
 class data_prefetcher():
-    def __init__(self, loader, prefetch=False):
+    def __init__(self, loader, prefetch=True):
         self.loader,self.prefetch = iter(loader),prefetch
         if prefetch:
             self.stream = torch.cuda.Stream()
@@ -244,8 +225,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
     while input is not None:
         i += 1
 
-        if args.prof:
-            if i > 200: break
+        if args.prof and (i > 200): break
         # measure data loading time
         data_time.update(time.time() - end)
 
@@ -313,9 +293,7 @@ def validate(val_loader, model, criterion):
     top1 = AverageMeter()
     top5 = AverageMeter()
 
-    # switch to evaluate mode
     model.eval()
-
     end = time.time()
 
     prefetcher = data_prefetcher(val_loader)
@@ -393,8 +371,8 @@ class AverageMeter(object):
 def adjust_learning_rate(optimizer, epoch):
     """Sets the learning rate to the initial LR decayed by 10 every few epochs"""
     lr = args.lr * (0.1 ** (epoch // args.decay_int))
-    for param_group in optimizer.param_groups:
-        param_group['lr'] = lr
+    if epoch<5: lr = args.lr/(5-epoch)
+    for param_group in optimizer.param_groups: param_group['lr'] = lr
 
 
 def accuracy(output, target, topk=(1,)):
@@ -419,5 +397,5 @@ def reduce_tensor(tensor):
     rt /= args.world_size
     return rt
 
-if __name__ == '__main__':
-    main()
+if __name__ == '__main__': main()
+

@@ -1,4 +1,6 @@
+from torchvision.models.resnet import *
 from .resnet2 import *
+from .resnet3 import *
 from .dpn import *
 from .darknet import *
 from .se_resnet import *

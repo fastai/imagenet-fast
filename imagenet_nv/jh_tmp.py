@@ -27,59 +27,60 @@ model_names = sorted(name for name in models.__dict__
 
 # Example usage: python run_fastai.py /home/paperspace/ILSVRC/Data/CLS-LOC/ -a resnext_50_32x4d --epochs 1 -j 4 -b 64 --fp16
 
-parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')
-parser.add_argument('data', metavar='DIR',
-                    help='path to dataset')
-parser.add_argument('--save-dir', type=str, default=Path.home()/'imagenet_training',
-                    help='Directory to save logs and models.')
-parser.add_argument('--arch', '-a', metavar='ARCH', default='resnet18',
-                    choices=model_names,
-                    help='model architecture: ' +
-                    ' | '.join(model_names) +
-                    ' (default: resnet18)')
-parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
-                    help='number of data loading workers (default: 4)')
-parser.add_argument('--epochs', default=90, type=int, metavar='N',
-                    help='number of total epochs to run')
-parser.add_argument('--cycle-len', default=1, type=float, metavar='N',
-                    help='Length of cycle to run')
-# parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
-#                     help='manual epoch number (useful on restarts)')
-parser.add_argument('-b', '--batch-size', default=256, type=int,
-                    metavar='N', help='mini-batch size (default: 256)')
-parser.add_argument('--lr', '--learning-rate', default=0.1, type=float,
-                    metavar='LR', help='initial learning rate')
-parser.add_argument('--momentum', default=0.9, type=float, metavar='M', help='momentum')
-parser.add_argument('--weight-decay', '--wd', default=1e-4, type=float,
-                    metavar='W', help='weight decay (default: 1e-4)')
-# parser.add_argument('--print-freq', '-p', default=10, type=int,
-#                     metavar='N', help='print frequency (default: 10)')
-# parser.add_argument('--resume', default='', type=str, metavar='PATH',
-#                     help='path to latest checkpoint (default: none)')
-# parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true',
-#                     help='evaluate model on validation set')
-parser.add_argument('--pretrained', dest='pretrained', action='store_true', help='use pre-trained model')
-parser.add_argument('--fp16', action='store_true', help='Run model fp16 mode.')
-parser.add_argument('--use-tta', action='store_true', help='Validate model with TTA at the end of traiing.')
-parser.add_argument('--train-small', action='store_true', help='Train model on small. TODO: allow custom epochs and LR')
-parser.add_argument('--sz',       default=224, type=int, help='Size of transformed image.')
-# parser.add_argument('--decay-int', default=30, type=int, help='Decay LR by 10 every decay-int epochs')
-parser.add_argument('--use-clr', type=str, 
-                    help='div,pct,max_mom,min_mom. Pass in a string delimited by commas. Ex: "20,2,0.95,0.85"')
-parser.add_argument('--loss-scale', type=float, default=1,
-                    help='Loss scaling, positive power of 2 values can improve fp16 convergence.')
-parser.add_argument('--prof', dest='prof', action='store_true', help='Only run a few iters for profiling.')
+def get_parser():
+    parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')
+    parser.add_argument('data', metavar='DIR',
+                        help='path to dataset')
+    parser.add_argument('--save-dir', type=str, default=Path.home()/'imagenet_training',
+                        help='Directory to save logs and models.')
+    parser.add_argument('--arch', '-a', metavar='ARCH', default='resnet18',
+                        choices=model_names,
+                        help='model architecture: ' +
+                        ' | '.join(model_names) +
+                        ' (default: resnet18)')
+    parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
+                        help='number of data loading workers (default: 4)')
+    parser.add_argument('--epochs', default=90, type=int, metavar='N',
+                        help='number of total epochs to run')
+    parser.add_argument('--cycle-len', default=1, type=float, metavar='N',
+                        help='Length of cycle to run')
+    # parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
+    #                     help='manual epoch number (useful on restarts)')
+    parser.add_argument('-b', '--batch-size', default=256, type=int,
+                        metavar='N', help='mini-batch size (default: 256)')
+    parser.add_argument('--lr', '--learning-rate', default=0.1, type=float,
+                        metavar='LR', help='initial learning rate')
+    parser.add_argument('--momentum', default=0.9, type=float, metavar='M', help='momentum')
+    parser.add_argument('--weight-decay', '--wd', default=1e-4, type=float,
+                        metavar='W', help='weight decay (default: 1e-4)')
+    # parser.add_argument('--print-freq', '-p', default=10, type=int,
+    #                     metavar='N', help='print frequency (default: 10)')
+    # parser.add_argument('--resume', default='', type=str, metavar='PATH',
+    #                     help='path to latest checkpoint (default: none)')
+    # parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true',
+    #                     help='evaluate model on validation set')
+    parser.add_argument('--pretrained', dest='pretrained', action='store_true', help='use pre-trained model')
+    parser.add_argument('--fp16', action='store_true', help='Run model fp16 mode.')
+    parser.add_argument('--use-tta', action='store_true', help='Validate model with TTA at the end of traiing.')
+    parser.add_argument('--train-small', action='store_true', help='Train model on small. TODO: allow custom epochs and LR')
+    parser.add_argument('--sz',       default=224, type=int, help='Size of transformed image.')
+    # parser.add_argument('--decay-int', default=30, type=int, help='Decay LR by 10 every decay-int epochs')
+    parser.add_argument('--use-clr', type=str, 
+                        help='div,pct,max_mom,min_mom. Pass in a string delimited by commas. Ex: "20,2,0.95,0.85"')
+    parser.add_argument('--loss-scale', type=float, default=1,
+                        help='Loss scaling, positive power of 2 values can improve fp16 convergence.')
+    parser.add_argument('--prof', dest='prof', action='store_true', help='Only run a few iters for profiling.')
 
-parser.add_argument('--dist-url', default='file://sync.file', type=str,
-                    help='url used to set up distributed training')
-parser.add_argument('--dist-backend', default='nccl', type=str, help='distributed backend')
+    parser.add_argument('--dist-url', default='file://sync.file', type=str,
+                        help='url used to set up distributed training')
+    parser.add_argument('--dist-backend', default='nccl', type=str, help='distributed backend')
 
-parser.add_argument('--world-size', default=1, type=int,
-                    help='Number of GPUs to use. Can either be manually set ' +
-                    'or automatically set by using \'python -m multiproc\'.')
-parser.add_argument('--rank', default=0, type=int,
-                    help='Used for multi-process training. Can either be manually set ' +
-                    'or automatically set by using \'python -m multiproc\'.')
+    parser.add_argument('--world-size', default=1, type=int,
+                        help='Number of GPUs to use. Can either be manually set ' +
+                        'or automatically set by using \'python -m multiproc\'.')
+    parser.add_argument('--rank', default=0, type=int,
+                        help='Used for multi-process training. Can either be manually set ' +
+                        'or automatically set by using \'python -m multiproc\'.')
 
 class TorchModelData(ModelData):
     def __init__(self, path, trn_dl, val_dl, aug_dl=None):
@@ -116,25 +117,24 @@ class Lighting(object):
             .sum(1).squeeze()
         return img.add(rgb.view(3, 1, 1).expand_as(img))
 
-def torch_loader(data_path, size):
+def torch_loader(data_path, size, bs, min_scale=0.08):
     # Data loading code
     traindir = os.path.join(data_path, 'train')
     valdir = os.path.join(data_path, 'val')
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 
     train_tfms = transforms.Compose([
-        transforms.RandomResizedCrop(size)#, scale=(0.4,1.)),
+        transforms.RandomResizedCrop(size, (min_scale,1.)),
         transforms.RandomHorizontalFlip(),
-        transforms.ColorJitter(.3,.3,.3),
+        #transforms.ColorJitter(.3,.3,.3),
         transforms.ToTensor(),
-        Lighting(0.1, __imagenet_pca['eigval'], __imagenet_pca['eigvec']),
+        #Lighting(0.1, __imagenet_pca['eigval'], __imagenet_pca['eigvec']),
         normalize,
     ])
     train_dataset = datasets.ImageFolder(traindir, train_tfms)
-    train_sampler = (torch.utils.data.distributed.DistributedSampler(train_dataset)
-                     if args.distributed else None)
+    train_sampler = (torch.utils.data.distributed.DistributedSampler(train_dataset) if args.distributed else None)
     train_loader = torch.utils.data.DataLoader(
-        train_dataset, batch_size=args.batch_size, shuffle=(train_sampler is None),
+        train_dataset, batch_size=bs, shuffle=(train_sampler is None),
         num_workers=args.workers, pin_memory=True, sampler=train_sampler)
 
     val_tfms = transforms.Compose([
@@ -144,15 +144,11 @@ def torch_loader(data_path, size):
         normalize,
     ])
     val_loader = torch.utils.data.DataLoader(
-        datasets.ImageFolder(valdir, val_tfms),
-        batch_size=args.batch_size*2, shuffle=False,
-        num_workers=args.workers, pin_memory=True)
+        datasets.ImageFolder(valdir, val_tfms), batch_size=bs*2, shuffle=False, num_workers=args.workers, pin_memory=True)
 
 
     aug_loader = torch.utils.data.DataLoader(
-        datasets.ImageFolder(valdir, train_tfms),
-        batch_size=args.batch_size, shuffle=False,
-        num_workers=args.workers, pin_memory=True)
+        datasets.ImageFolder(valdir, train_tfms), batch_size=bs, shuffle=False, num_workers=args.workers, pin_memory=True)
 
     train_loader = DataPrefetcher(train_loader)
     val_loader = DataPrefetcher(val_loader)
@@ -267,10 +263,15 @@ def update_model_dir(learner, base_dir):
     learner.models_path = f'{base_dir}/models'
     os.makedirs(learner.models_path, exist_ok=True)
 
-# This is important for speed
+def fit(name, lr, cycle_len, sampler, wds, clr=None):
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", category=UserWarning)
+        print(f'\n-- {name} --\n')
+        sargs = save_args(name, args.save_dir)
+        learner.fit(lr, 1, cycle_len=cycle_len, sampler=train_sampler, wds=wds, use_clr=clr, loss_scale=1024, **sargs)
+
 cudnn.benchmark = True
-global args
-args = parser.parse_args()
+args = get_parser().parse_args()
 print('Running script with args:', args)
 
 def main():
@@ -292,70 +293,31 @@ def main():
     model = model.cuda()
     if args.distributed: model = DDP(model)
 
-    data, train_sampler = (torch_loader(f'{args.data}-sz/200', 160) if args.train_small
-        else torch_loader(args.data, args.sz))
-
+    data, train_sampler = torch_loader(f'{args.data}-sz/200', 160, 192)
     learner = Learner.from_model_data(model, data)
     learner.crit = F.cross_entropy
     learner.metrics = [accuracy, top5]
     if args.fp16: learner.half()
 
-    if args.prof:
-        args.epochs = 1
-        args.cycle_len=1
+    if args.prof: args.epochs = 1; args.cycle_len=1
     if args.use_clr: args.use_clr = tuple(map(float, args.use_clr.split(',')))
 
-    # small
-    if args.train_small
-        save_dir = f'{args.save_dir}/small'
-        update_model_dir(learner, save_dir)
-        sargs = save_args('first_run_small', save_dir)
-        learner.fit(args.lr, args.epochs, cycle_len=args.cycle_len,
-                    sampler=train_sampler, wds=args.weight_decay, use_clr_beta=args.use_clr,
-                    loss_scale=args.loss_scale, **sargs)
-        save_sched(learner.sched, save_dir)
-        data, train_sampler = torch_loader(args.data, args.sz)
-        learner.set_data(data)
-
-
-    # Full size
+    wd=2e-5
     update_model_dir(learner, args.save_dir)
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", category=UserWarning)
-        if True:
-            print('\n-- 1 --\n')
-            sargs = save_args('first_run', args.save_dir)
-            learner.fit(args.lr/10, args.epochs, cycle_len=args.cycle_len,
-                    sampler=train_sampler, wds=args.weight_decay, use_clr_beta=args.use_clr,
-                    loss_scale=args.loss_scale, **sargs)
-        else: load_model(learner.model, f'{args.save_dir}/models/first_run_best_model.h5')
+    fit('1', 0.03, 1, sampler, wd)
+    fit('2', 0.1, 24, sampler, wd)
 
-        if True:
-            print('\n-- 2 --\n')
-            sargs = save_args('part2', args.save_dir)
-            learner.fit(args.lr/100, args.epochs,
-                    sampler=train_sampler, wds=args.weight_decay,
-                    loss_scale=args.loss_scale, **sargs)
-        else: load_model(learner.model, f'{args.save_dir}/models/part2_best_model.h5')
+    data, train_sampler = torch_loader(args.data, 224), 192)
+    learn.set_data(data)
+    fit('3', 1e-1, 5, sampler, wd)
+    fit('4', 1e-2, 30, sampler, wd)
+    fit('5', 1e-3, 10, sampler, wd)
 
-        if False:
-            print('\n-- 3 --\n')
-            sargs = save_args('part3', args.save_dir)
-            learner.fit(args.lr/100, 30,
-                    sampler=train_sampler, wds=args.weight_decay*10,
-                    loss_scale=args.loss_scale, **sargs)
-            print('\n-- 4 --\n')
-            sargs = save_args('part4', args.save_dir)
-            learner.fit(args.lr/1000, 30,
-                    sampler=train_sampler, wds=args.weight_decay*10,
-                    loss_scale=args.loss_scale, **sargs)
-            print('\n-- 5 --\n')
-            sargs = save_args('part5', args.save_dir)
-            learner.fit(args.lr/10000, 10,
-                    sampler=train_sampler, wds=args.weight_decay*10,
-                    loss_scale=args.loss_scale, **sargs)
-
+    data, train_sampler = torch_loader(args.data, 288), 128, min_scale=0.5)
+    learn.set_data(data)
+    fit('6', 3e-4, 10, sampler, wd/2)
     save_sched(learner.sched, args.save_dir)
+    fit('7', 1e-4, 10, sampler, wd/4)
 
     # TTA works ~50% of the time. Hoping top5 works better
     if args.use_tta:
