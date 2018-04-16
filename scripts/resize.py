@@ -9,7 +9,8 @@ cpus = min(48,cpus)
 PATH = Path.home()/'data/imagenet'
 #DEST = Path('/mnt/ram')
 DEST = Path.home()/'data/imagenet-sz'
-szs = (int(128*1.25), int(256*1.25))
+#szs = (int(128*1.25), int(256*1.25))
+szs = (int(160*1.25),)
 
 def resize_img(p, im, fn, sz):
     w,h = im.size

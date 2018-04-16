@@ -1,4 +1,4 @@
-from .resnet import *
+from .resnet2 import *
 from .dpn import *
 from .darknet import *
 from .se_resnet import *
