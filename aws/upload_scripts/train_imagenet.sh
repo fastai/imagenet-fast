@@ -22,6 +22,10 @@ case $key in
     shift # past argument
     shift # past value
     ;;
+    -resume|--resume_h5_file)
+    RESUME="$2"
+    shift # past argument
+    ;;
     -multi|--use_multiproc)
     MULTI="$1"
     shift # past argument
@@ -60,14 +64,13 @@ echo "$(date '+%Y-%m-%d-%H-%M-%S') Instance loaded. Updating projects." |& tee -
 cd ~/fastai
 git stash
 git pull
-# FP16 branch required for pytorch 0.4 builds. Models will run out of memory on validation because 0.4 doesn't support volatile
-git checkout fp16
 git stash pop
 SHELL=/bin/bash
 source ~/anaconda3/bin/activate fastai && conda env update -f=environment.yml
 ln -s ~/fastai/fastai ~/anaconda3/envs/fastai/lib/python3.6/site-packages
 cd ~/git/imagenet-fast/imagenet_nv
 git pull
+git checkout checkpoint
 
 # Cleanup. Might not be a problem in newest AMI
 sudo apt update && sudo apt install -y libsm6 libxext6
@@ -98,6 +101,15 @@ if [[ -n "$WARMUP" ]]; then
     fi
 fi
 
+
+if [[ -n "$RESUME" ]]; then
+    echo Resuming from file $RESUME
+    $RESUME_DIR=$SAVE_DIR/resume
+    mkdir $RESUME_DIR
+    scp -o StrictHostKeyChecking=no ubuntu@aws-m5.mine.nu:$RESUME $RESUME_DIR
+    SARGS=$SARGS --resume $RESUME_DIR/$(basename $RESUME)
+    MULTI="-m multiproc"
+fi
 # Run fastai_imagenet
 echo "$(date '+%Y-%m-%d-%H-%M-%S') Running script: time python $MULTI fastai_imagenet.py $DATA_DIR --save-dir $SAVE_DIR $SARGS" |& tee -a $SAVE_DIR/script.log
 time python $MULTI fastai_imagenet.py $DATA_DIR --save-dir $SAVE_DIR $SARGS |& tee -a $SAVE_DIR/output.log
