@@ -60,8 +60,6 @@ echo "$(date '+%Y-%m-%d-%H-%M-%S') Instance loaded. Updating projects." |& tee -
 cd ~/fastai
 git stash
 git pull
-# FP16 branch required for pytorch 0.4 builds. Models will run out of memory on validation because 0.4 doesn't support volatile
-git checkout fp16
 git stash pop
 SHELL=/bin/bash
 source ~/anaconda3/bin/activate fastai && conda env update -f=environment.yml
