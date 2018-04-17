@@ -3,7 +3,7 @@ import math
 import torch.utils.model_zoo as model_zoo
 
 
-__all__ = ['ResNet', 'resnet34_3', 'resnet50_3']
+__all__ = ['ResNet', 'resnet50_3']
 
 
 model_urls = {
@@ -21,41 +21,10 @@ def conv3x3(in_planes, out_planes, stride=1):
                      padding=1, bias=False)
 
 def bn(ni, init_zero=False):
-    m = nn.BatchNorm2d(ni)
+    m = nn.BatchNorm2d(ni, momentum=0.01)
     m.weight.data.fill_(0 if init_zero else 1)
     m.bias.data.zero_()
     return m
-
-class BasicBlock(nn.Module):
-    expansion = 1
-
-    def __init__(self, inplanes, planes, stride=1, downsample=None):
-        super(BasicBlock, self).__init__()
-        self.conv1 = conv3x3(inplanes, planes, stride)
-        self.bn1 = bn(planes)
-        self.relu = nn.ReLU(inplace=True)
-        self.conv2 = conv3x3(planes, planes)
-        self.bn2 = bn(planes)
-        self.downsample = downsample
-        self.stride = stride
-
-    def forward(self, x):
-        residual = x
-
-        out = self.conv1(x)
-        out = self.bn1(out)
-        out = self.relu(out)
-
-        out = self.conv2(out)
-        out = self.bn2(out)
-
-        if self.downsample is not None:
-            residual = self.downsample(x)
-
-        out += residual
-        out = self.relu(out)
-
-        return out
 
 
 class Bottleneck(nn.Module):
@@ -68,28 +37,24 @@ class Bottleneck(nn.Module):
         self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, stride=stride, padding=1, bias=False)
         self.bn2 = bn(planes)
         self.conv3 = nn.Conv2d(planes, planes * self.expansion, kernel_size=1, bias=False)
-        self.bn3 = bn(planes * self.expansion, init_zero=True)
+        self.bn3 = bn(planes * self.expansion)#, init_zero=True)
         self.relu = nn.ReLU(inplace=True)
         self.downsample = downsample
         self.stride = stride
 
     def forward(self, x):
-        residual = x
+        residual = x if self.downsample is None else self.downsample(x)
 
         out = self.conv1(x)
         out = self.bn1(out)
         out = self.relu(out)
-
         out = self.conv2(out)
         out = self.bn2(out)
         out = self.relu(out)
-
         out = self.conv3(out)
-        out = 0.2 * self.bn3(out)
-
-        if self.downsample is not None: residual = self.downsample(x)
 
         out += residual
+        out = self.bn3(out)
         out = self.relu(out)
         return out
 
@@ -143,19 +108,8 @@ class ResNet(nn.Module):
 
         x = self.avgpool(x)
         x = x.view(x.size(0), -1)
-        return self.fc(self.drop(x))
-
-
-def resnet34_3(pretrained=False, **kwargs):
-    """Constructs a ResNet-34 model.
-
-    Args:
-        pretrained (bool): If True, returns a model pre-trained on ImageNet
-    """
-    model = ResNet(BasicBlock, [3, 4, 6, 3], **kwargs)
-    if pretrained:
-        model.load_state_dict(model_zoo.load_url(model_urls['resnet34']))
-    return model
+        #return self.fc(self.drop(x))
+        return self.fc(x)
 
 
 def resnet50_3(pretrained=False, **kwargs):

@@ -272,23 +272,27 @@ def main():
     learner.crit = F.cross_entropy
     learner.metrics = [accuracy, top5]
     if args.fp16: learner.half()
-
-    wd=2e-5
     update_model_dir(learner, args.save_dir)
-    fit(learner, '1', 0.05, 1, train_sampler, wd*2)
-    fit(learner, '2', 0.2, 24, train_sampler, wd*2)
 
+    wd=1e-4
+    lr=0.1
     data, train_sampler = torch_loader(args.data, 224, 192)
     learner.set_data(data)
-    fit(learner, '3', 1e-1, 5, train_sampler, wd*2)
-    fit(learner, '4', 1e-2, 30, train_sampler, wd)
-    fit(learner, '5', 1e-3, 10, train_sampler, wd)
+    fit(learner, '1', lr/4, 1, train_sampler, wd)
+    fit(learner, '1', lr/2, 1, train_sampler, wd)
+    fit(learner, '2', lr, 28, train_sampler, wd)
+
+    #data, train_sampler = torch_loader(args.data, 224, 192)
+    #learner.set_data(data)
+    #fit(learner, '3', lr, 5, train_sampler, wd)
+    fit(learner, '4', lr/10, 25, train_sampler, wd)
+    fit(learner, '5', lr/100, 25, train_sampler, wd)
 
     data, train_sampler = torch_loader(args.data, 288, 128, min_scale=0.5)
     learner.set_data(data)
-    fit(learner, '6', 3e-4, 10, train_sampler, wd/2)
-    save_sched(learner.sched, args.save_dir)
-    fit(learner, '7', 1e-4, 10, train_sampler, wd/4)
+    fit(learner, '6', lr/500, 10, train_sampler, wd)
+    #save_sched(learner.sched, args.save_dir)
+    #fit(learner, '7', 1e-4, 10, train_sampler, wd/4)
 
     # TTA works ~50% of the time. Hoping top5 works better
     print('\n TTA \n')

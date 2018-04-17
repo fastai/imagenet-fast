@@ -71,6 +71,7 @@ def get_parser():
     parser.add_argument('--rank', default=0, type=int,
                         help='Used for multi-process training. Can either be manually set ' +
                         'or automatically set by using \'python -m multiproc\'.')
+    return parser
 
 cudnn.benchmark = True
 args = get_parser().parse_args()
@@ -100,7 +101,7 @@ def get_loaders(traindir, valdir):
         batch_size=args.batch_size*2, shuffle=False,
         num_workers=args.workers, pin_memory=False)
 
-    return traindir, valdir
+    return train_loader,val_loader,train_sampler
 
 
 def main():
@@ -148,7 +149,7 @@ def main():
 
     traindir = os.path.join(args.data, 'train')
     valdir = os.path.join(args.data, 'val')
-    train_loader,val_loader = get_loaders(traindir, valdir)
+    train_loader,val_loader,train_sampler = get_loaders(traindir, valdir)
 
     if args.evaluate: return validate(val_loader, model, criterion)
 
