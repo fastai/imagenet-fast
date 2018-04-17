@@ -7,8 +7,17 @@ import torch.nn.functional as F
 from .layers import *
 
 def conv_2d(ni, nf, ks, stride): return nn.Conv2d(ni, nf, kernel_size=ks, stride=stride, padding=ks//2, bias=False)
-def bn_relu_conv(ni, nf, ks, stride):
-    return nn.Sequential(nn.BatchNorm2d(ni), nn.ReLU(inplace=True), conv_2d(ni, nf, ks, stride))
+
+def bn(ni, init_zero=False):
+    m = nn.BatchNorm2d(ni)
+    m.weight.data.fill_(0 if init_zero else 1)
+    m.bias.data.zero_()
+    return m
+
+def bn_relu_conv(ni, nf, ks, stride, init_zero=False):
+    bn_initzero = bn(ni, init_zero=init_zero)
+    return nn.Sequential(bn_initzero, nn.ReLU(inplace=True), conv_2d(ni, nf, ks, stride))
+
 def noop(x): return x
 
 class BasicBlock(nn.Module):
@@ -25,7 +34,7 @@ class BasicBlock(nn.Module):
         r = self.shortcut(x2)
         x = self.conv1(x2)
         if self.drop: x = self.drop(x)
-        x = self.conv2(x)
+        x = self.conv2(x) ## * 0.2
         return x.add_(r)
 
 
