@@ -28,7 +28,7 @@ def bn(ni, init_zero=False):
 
 
 class Bottleneck(nn.Module):
-    expansion = 5
+    expansion = 4
 
     def __init__(self, inplanes, planes, stride=1, downsample=None):
         super(Bottleneck, self).__init__()
@@ -37,7 +37,7 @@ class Bottleneck(nn.Module):
         self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, stride=stride, padding=1, bias=False)
         self.bn2 = bn(planes)
         self.conv3 = nn.Conv2d(planes, planes * self.expansion, kernel_size=1, bias=False)
-        self.bn3 = bn(planes * self.expansion)#, init_zero=True)
+        self.bn3 = bn(planes * self.expansion, init_zero=True)
         self.relu = nn.ReLU(inplace=True)
         self.downsample = downsample
         self.stride = stride
@@ -72,7 +72,7 @@ class ResNet(nn.Module):
         self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
         self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
         self.avgpool = nn.AdaptiveAvgPool2d(1)
-        self.drop = nn.Dropout(0.2)
+        self.drop = nn.Dropout(0.1)
         self.fc = nn.Linear(512 * block.expansion, num_classes)
 
         for m in self.modules():
@@ -108,8 +108,8 @@ class ResNet(nn.Module):
 
         x = self.avgpool(x)
         x = x.view(x.size(0), -1)
-        #return self.fc(self.drop(x))
-        return self.fc(x)
+        return self.fc(self.drop(x))
+        # return self.fc(x)
 
 
 def resnet50_3(pretrained=False, **kwargs):

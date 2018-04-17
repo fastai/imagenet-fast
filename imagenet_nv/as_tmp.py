@@ -264,7 +264,7 @@ def main():
     model = model.cuda()
     if args.distributed: model = DDP(model)
 
-    data, train_sampler = torch_loader(f'{args.data}-160', 128, 512)
+    data, train_sampler = torch_loader(f'{args.data}-sz/160', 128, 512)
     learner = Learner.from_model_data(model, data)
     learner.crit = F.cross_entropy
     learner.metrics = [accuracy, top5]
@@ -272,13 +272,14 @@ def main():
 
     wd=5e-6
     update_model_dir(learner, args.save_dir)
-    fit(learner, '1', 2, 20, train_sampler, wd*2, clr=(50,2,0.95,0.85))
+    fit(learner, '1', 0.05, 1, train_sampler, wd*2)
+    fit(learner, '2', 2, 20, train_sampler, wd*2, clr=(20,2,0.95,0.85))
 
-    data, train_sampler = torch_loader(args.data, 224, 256)
+    data, train_sampler = torch_loader(f'{args.data}-sz/320', 224, 256)
     learner.set_data(data)
-    fit(learner, '2', 2, 16, train_sampler, wd*2, clr=(20,2,0.95,0.85))
-    fit(learner, '4', 1e-2, 30, train_sampler, wd)
-    fit(learner, '5', 1e-3, 10, train_sampler, wd)
+    fit(learner, '3', 2, 10, train_sampler, wd*2, clr=(10,2,0.95,0.85))
+    fit(learner, '4', 4e-2, 30, train_sampler, wd)
+    fit(learner, '5', 4e-3, 20, train_sampler, wd)
 
     data, train_sampler = torch_loader(args.data, 288, 128, min_scale=0.5)
     learner.set_data(data)
