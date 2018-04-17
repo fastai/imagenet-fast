@@ -1,4 +1,4 @@
-import torch.nn as nn, math
+import torch.nn as nn, math, torch.nn.functional as F
 from .layers import *
 
 __all__ = ['ResNet', 'fa_resnet50']
@@ -40,16 +40,16 @@ class Bottleneck(nn.Module):
 
 
 class ResNet(nn.Module):
-    def __init__(self, block, layers, num_classes=1000, init=True):
+    def __init__(self, block, layer_szs, num_classes=1000, init=True):
         self.inplanes = 64
         super(ResNet, self).__init__()
         layers = [conv(3, 64, ks=7, stride=2), bn(64), nn.ReLU(inplace=True),
                   nn.MaxPool2d(kernel_size=3, stride=2, padding=1)]
-        layers += self._make_layer(block, 64, layers[0])
-        layers += self._make_layer(block, 128, layers[1], stride=2)
-        layers += self._make_layer(block, 256, layers[2], stride=2)
-        layers += self._make_layer(block, 512, layers[3], stride=2)
-        layers += [nn.AvgPool2d(7, stride=1), Flatten(),
+        layers += self._make_layer(block, 64, layer_szs[0])
+        layers += self._make_layer(block, 128, layer_szs[1], stride=2)
+        layers += self._make_layer(block, 256, layer_szs[2], stride=2)
+        layers += self._make_layer(block, 512, layer_szs[3], stride=2)
+        layers += [nn.AdaptiveAvgPool2d(1), Flatten(),
                    nn.Linear(512 * block.expansion, num_classes)]
         self.features = nn.Sequential(*layers)
 
@@ -63,11 +63,11 @@ class ResNet(nn.Module):
         downsample = (None if stride == 1 and self.inplanes == planes * block.expansion
             else nn.Sequential(
                 conv(self.inplanes, planes * block.expansion, ks=1, stride=stride),
-                bn(planes * block.expansion))
+                bn(planes * block.expansion)))
 
-        layers = [block(self.inplanes, planes, stride, downsample))]
+        layers = [block(self.inplanes, planes, stride, downsample)]
         self.inplanes = planes * block.expansion
-        return layers + [block(self.inplanes, planes)) for i in range(1, blocks)]
+        return layers + [block(self.inplanes, planes) for i in range(1, blocks)]
 
     def forward(self, x): return self.features(x)
 
