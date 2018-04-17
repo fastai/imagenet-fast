@@ -267,7 +267,7 @@ def main():
     model = model.cuda()
     if args.distributed: model = DDP(model)
 
-    data, train_sampler = torch_loader(f'{args.data}-sz/160', 128, 256)
+    data, train_sampler = torch_loader(f'{args.data}-160', 128, 256)
     learner = Learner.from_model_data(model, data)
     learner.crit = F.cross_entropy
     learner.metrics = [accuracy, top5]

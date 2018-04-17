@@ -66,6 +66,7 @@ source ~/anaconda3/bin/activate fastai && conda env update -f=environment.yml
 ln -s ~/fastai/fastai ~/anaconda3/envs/fastai/lib/python3.6/site-packages
 cd ~/git/imagenet-fast/imagenet_nv
 git pull
+git checkout custom_script
 
 # Cleanup. Might not be a problem in newest AMI
 sudo apt update && sudo apt install -y libsm6 libxext6
@@ -97,8 +98,8 @@ if [[ -n "$WARMUP" ]]; then
 fi
 
 # Run fastai_imagenet
-echo "$(date '+%Y-%m-%d-%H-%M-%S') Running script: time python $MULTI fastai_imagenet.py $DATA_DIR --save-dir $SAVE_DIR $SARGS" |& tee -a $SAVE_DIR/script.log
-time python $MULTI fastai_imagenet.py $DATA_DIR --save-dir $SAVE_DIR $SARGS |& tee -a $SAVE_DIR/output.log
+echo "$(date '+%Y-%m-%d-%H-%M-%S') Running script: time python $MULTI jh_tmp.py $DATA_DIR --save-dir $SAVE_DIR $SARGS" |& tee -a $SAVE_DIR/script.log
+time python $MULTI jh_tmp.py $DATA_DIR --save-dir $SAVE_DIR $SARGS |& tee -a $SAVE_DIR/output.log
 echo "$(date '+%Y-%m-%d-%H-%M-%S') Imagenet training finished." |& tee -a $SAVE_DIR/script.log
 
 scp -o StrictHostKeyChecking=no -r $SAVE_DIR ubuntu@aws-m5.mine.nu:~/data/imagenet_training
