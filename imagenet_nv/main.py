@@ -98,7 +98,7 @@ def get_loaders(traindir, valdir):
             transforms.Resize(int(args.sz*1.14)),
             transforms.CenterCrop(args.sz),
         ] + tensor_tfm)),
-        batch_size=args.batch_size*2, shuffle=False,
+        batch_size=int(args.batch_size*1.6), shuffle=False,
         num_workers=args.workers, pin_memory=False)
 
     return train_loader,val_loader,train_sampler
