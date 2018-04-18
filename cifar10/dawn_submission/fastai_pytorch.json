@@ -1,0 +1,11 @@
+{
+    "version": "v1.0",
+    "author": "fast.ai + students",
+    "authorEmail": "j@fast.ai",
+    "framework": "fastai / pytorch",
+    "codeURL": "https://github.com/fastai/imagenet-fast/",
+    "model": "Custom Wide Resnet",
+    "hardware": "8 * V100 (AWS p3.xlarge)",
+    "costPerHour": 8.68,
+    "timestamp": "2018-04-18"
+}
