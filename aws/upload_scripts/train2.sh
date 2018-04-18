@@ -59,8 +59,8 @@ cd ~/git/imagenet-fast/imagenet_nv
 echo "$(date '+%Y-%m-%d-%H-%M-%S') Warming up volume." |& tee -a $SAVE_DIR/script.log
 python -m multiproc jh_warm.py ~/data/imagenet -j 8 -a fa_resnet50 --fp16
 
-echo "$(date '+%Y-%m-%d-%H-%M-%S') Running script: $SAVE_DIR" |& tee -a $SAVE_DIR/script.log
-time python -m multiproc main.py $DATA_DIR -j 8 --fp16 --epochs 100 -b 192 --loss-scale 512 --save-dir $SAVE_DIR $SARGS |& tee -a $SAVE_DIR/output.log
+echo "$(date '+%Y-%m-%d-%H-%M-%S') Running script: $SAVE_DIR $SARGS" |& tee -a $SAVE_DIR/script.log
+time python -m multiproc main.py $DATA_DIR -j 8 --fp16 --epochs 1 -b 192 --loss-scale 512 --save-dir $SAVE_DIR $SARGS |& tee -a $SAVE_DIR/output.log
 echo "$(date '+%Y-%m-%d-%H-%M-%S') Training finished." |& tee -a $SAVE_DIR/script.log
 scp -o StrictHostKeyChecking=no -r $SAVE_DIR ubuntu@aws-m5.mine.nu:~/data/imagenet_training
 
