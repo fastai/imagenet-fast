@@ -28,7 +28,7 @@ parser.add_argument('-nv', '--use-nvidia', action='store_true',
 parser.add_argument('-t', '--terminate', action='store_true',
                     help='Terminate instance after script is run.')
 parser.add_argument('-itype', '--instance-type', default='p3.16xlarge', type=str, help='Instance type')
-parser.add_argument('-zone', '--availability-zone', type=str, default='us-west-2c', help='Availability zone to create spot instance')
+parser.add_argument('-zone', '--availability-zone', type=str, default='us-west-2a', help='Availability zone to create spot instance')
 parser.add_argument('-ami', type=str, default='ami-85117cfd', help='AMI type')
 parser.add_argument('--launch-method', type=str, default='spot', help='Launch instance with (spot|demand|find)')
 parser.add_argument('-price', type=str, help='Spot price')
