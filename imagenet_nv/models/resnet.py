@@ -74,4 +74,8 @@ class ResNet(nn.Module):
 
 
 def fa_resnet50(pretrained=False, **kwargs): return ResNet(Bottleneck, [3, 4, 6, 3], **kwargs)
+def bnzero_resnet50(pretrained=False, **kwargs): return ResNet(Bottleneck, [3, 4, 6, 3], bn_zero=True)
+def bnfinal_resnet50(pretrained=False, **kwargs): return ResNet(Bottleneck, [3, 4, 6, 3], bn_final=True)
+def noinit_resnet50(pretrained=False, **kwargs): return ResNet(Bottleneck, [3, 4, 6, 3], init=False)
+def fa5_resnet50(pretrained=False, **kwargs): return ResNet(Bottleneck, [3, 4, 6, 3], expansion=5)
 
