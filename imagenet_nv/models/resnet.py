@@ -1,9 +1,6 @@
 import torch.nn as nn, math, torch.nn.functional as F
 from .layers import *
 
-__all__ = ['ResNet', 'fa_resnet50']
-
-
 def conv(in_planes, out_planes, ks=3, stride=1):
     return nn.Conv2d(in_planes, out_planes, kernel_size=ks, stride=stride, padding=ks//2, bias=False)
 
@@ -74,4 +71,8 @@ class ResNet(nn.Module):
 
 
 def fa_resnet50(pretrained=False, **kwargs): return ResNet(Bottleneck, [3, 4, 6, 3], **kwargs)
+def bnzero_resnet50(pretrained=False, **kwargs): return ResNet(Bottleneck, [3, 4, 6, 3], bn_zero=True)
+def bnfinal_resnet50(pretrained=False, **kwargs): return ResNet(Bottleneck, [3, 4, 6, 3], bn_final=True)
+def noinit_resnet50(pretrained=False, **kwargs): return ResNet(Bottleneck, [3, 4, 6, 3], init=False)
+def fa5_resnet50(pretrained=False, **kwargs): return ResNet(Bottleneck, [3, 4, 6, 3], expansion=5)
 
