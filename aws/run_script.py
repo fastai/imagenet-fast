@@ -5,13 +5,11 @@ parser = argparse.ArgumentParser(description='Fast.ai ImageNet Training')
 
 parser.add_argument('-p', '--project-name', required=True, type=str,
                     help='Name this experiment/project. It is also the instance name')
-parser.add_argument('-itype', '--instance-type', required=True, type=str,
-                    help='Instance type')
 parser.add_argument('-iname', '--instance-name', required=True, type=str,
                     help='Instance name. We auto prepend instance with vpc name. instance-name -> fast-ai-instance-name')
 parser.add_argument('-vpc', '--vpc-name', default='fast-ai', type=str,
                     help='AWS VPC to create instance on (default: fast-ai)')
-parser.add_argument('-vs', '--volume-size', default=500, type=int,
+parser.add_argument('-vs', '--volume-size', default=1010, type=int,
                     help='Size of ebs volume to create')
 parser.add_argument('--persist-ebs', action='store_true',
                     help='Delete ebs volume instance termination (default: True)')
@@ -21,24 +19,21 @@ parser.add_argument('-ebs', '--ebs-name', type=str,
                     help='Name of ebs volume to attach.')
 parser.add_argument('-r', '--run-script', type=str,
                     help='Run custom script')
-parser.add_argument('-zone', '--availability-zone', type=str,
-                    help='Availability zone to create spot instance')
+parser.add_argument('-sargs', '--script-args', type=str, default='',
+                    help='Arguments to pass in when running script. Ex: "-a resnet50 -j 7"')
 parser.add_argument('-fast', '--use-fastai', action='store_true',
                     help='Train imagenet with fastai library.')
 parser.add_argument('-c10', '--use-cifar10', action='store_true',
                     help='Train cifar10 with fastai library.')
 parser.add_argument('-nv', '--use-nvidia', action='store_true',
                     help='Train imagenet with nvidia library.')
-parser.add_argument('-sargs', '--script-args', type=str, default='',
-                    help='Arguments to pass in when running script. Ex: "-a resnet50 -j 7 --epochs 100 -b 128 --loss-scale 128 --fp16"')
 parser.add_argument('-t', '--terminate', action='store_true',
                     help='Terminate instance after script is run.')
-parser.add_argument('-ami', type=str,
-                    help='AMI type')
-parser.add_argument('--launch-method', type=str, default='spot',
-                    help='Launch instance with (spot|demand|find)')
-parser.add_argument('-price', type=str,
-                    help='Spot price')
+parser.add_argument('-itype', '--instance-type', default='p3.16xlarge', type=str, help='Instance type')
+parser.add_argument('-zone', '--availability-zone', type=str, default='us-west-2c', help='Availability zone to create spot instance')
+parser.add_argument('-ami', type=str, default='ami-85117cfd', help='AMI type')
+parser.add_argument('--launch-method', type=str, default='spot', help='Launch instance with (spot|demand|find)')
+parser.add_argument('-price', type=str, help='Spot price')
 
 args = parser.parse_args()
 
@@ -69,19 +64,6 @@ def attach_volumes(instance, client):
 
 
 def run_script(client):
-    if args.use_fastai:
-        if not args.script_args: print('Must pass in script arguments to run fastai. See train_fastai.sh and fastai_imagenet.py'); return 
-        args.run_script = Path.cwd()/'upload_scripts/train_imagenet.sh'
-        args.script_args += f' -p {args.project_name}'
-    elif args.use_nvidia:
-        if not args.script_args: print('Must pass in script arguments to run nvidia. See train_nvidia.sh and main.py'); return
-        args.run_script = Path.cwd()/'upload_scripts/train_nv.sh'
-        args.script_args += f' -p {args.project_name}'
-    elif args.use_cifar10:
-        if not args.script_args: print('Must pass in script arguments to run cifar10. See train_cifar10.sh and train_cifar10.py'); return
-        args.run_script = Path.cwd()/'upload_scripts/train_cifar10.sh'
-        args.script_args += f' -p {args.project_name}'
-
     tsess = TmuxSession(client, 'imagenet')
     script_loc = Path(args.run_script)
     script_loc = Path(script_loc.expanduser())
@@ -113,13 +95,22 @@ def main():
     client = connect_to_instance(instance)
     print(f'Completed.\nSSH: ', get_ssh_command(instance))
 
-    try:
-        attach_volumes(instance, client)
-    except Exception as e:
-        print('Could not attach storage:', e)
+    try: attach_volumes(instance, client)
+    except Exception as e: print('Could not attach storage:', e)
 
-
-    run_script(client)
+    if args.use_fastai:
+        if not args.script_args: print('Must pass in script arguments to run fastai. See train_fastai.sh and fastai_imagenet.py'); return 
+        args.run_script = Path.cwd()/'upload_scripts/train_imagenet.sh'
+        args.script_args += f' -p {args.project_name}'
+    elif args.use_nvidia:
+        if not args.script_args: print('Must pass in script arguments to run nvidia. See train_nvidia.sh and main.py'); return
+        args.run_script = Path.cwd()/'upload_scripts/train_nv.sh'
+        args.script_args += f' -p {args.project_name}'
+    elif args.use_cifar10:
+        if not args.script_args: print('Must pass in script arguments to run cifar10. See train_cifar10.sh and train_cifar10.py'); return
+        args.run_script = Path.cwd()/'upload_scripts/train_cifar10.sh'
+        args.script_args += f' -p {args.project_name}'
+    if args.run_script: run_script(client)
 
 main()
 
