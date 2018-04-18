@@ -3,8 +3,6 @@ from pathlib import *
 
 parser = argparse.ArgumentParser(description='Fast.ai ImageNet Training')
 
-parser.add_argument('-p', '--project-name', required=True, type=str,
-                    help='Name this experiment/project. It is also the instance name')
 parser.add_argument('-iname', '--instance-name', required=True, type=str,
                     help='Instance name. We auto prepend instance with vpc name. instance-name -> fast-ai-instance-name')
 parser.add_argument('-vpc', '--vpc-name', default='fast-ai', type=str,
@@ -64,7 +62,7 @@ def attach_volumes(instance, client):
 
 
 def run_script(client):
-    tsess = TmuxSession(client, 'imagenet')
+    tsess = TmuxSession(client, args.instance_name)
     script_loc = Path(args.run_script)
     script_loc = Path(script_loc.expanduser())
     upload_file(client, script_loc, script_loc.name)
@@ -101,15 +99,13 @@ def main():
     if args.use_fastai:
         if not args.script_args: print('Must pass in script arguments to run fastai. See train_fastai.sh and fastai_imagenet.py'); return 
         args.run_script = Path.cwd()/'upload_scripts/train_imagenet.sh'
-        args.script_args += f' -p {args.project_name}'
     elif args.use_nvidia:
         if not args.script_args: print('Must pass in script arguments to run nvidia. See train_nvidia.sh and main.py'); return
         args.run_script = Path.cwd()/'upload_scripts/train_nv.sh'
-        args.script_args += f' -p {args.project_name}'
     elif args.use_cifar10:
         if not args.script_args: print('Must pass in script arguments to run cifar10. See train_cifar10.sh and train_cifar10.py'); return
         args.run_script = Path.cwd()/'upload_scripts/train_cifar10.sh'
-        args.script_args += f' -p {args.project_name}'
+    args.script_args += f' -p {args.instance_name}'
     if args.run_script: run_script(client)
 
 main()
