@@ -15,6 +15,10 @@ case $key in
     DATA_DIR="$2"
     shift
     ;;
+    -b)
+    BS="$2"
+    shift
+    ;;
     --sz)
     SIZE="$2"
     shift
@@ -36,6 +40,9 @@ if [[ -z ${SARGS+x} ]]; then
 fi
 if [[ -z ${PROJECT+x} ]]; then
     PROJECT="imagenet_training"
+fi
+if [[ -z ${BS+x} ]]; then
+    BS=192
 fi
 if [[ -z ${SIZE+x} ]]; then
     SIZE=224
@@ -82,7 +89,7 @@ echo "$(date '+%Y-%m-%d-%H-%M-%S') Warming up volume." |& tee -a $SAVE_DIR/scrip
 python -m multiproc jh_warm.py ~/data/imagenet -j 8 -a fa_resnet50 --fp16
 
 echo "$(date '+%Y-%m-%d-%H-%M-%S') Running script: $SAVE_DIR $SARGS" |& tee -a $SAVE_DIR/script.log
-time python -m multiproc main.py $DATA_DIR --sz $SIZE -j 8 --fp16 --epochs 80 -b 192 --loss-scale 512 --save-dir $SAVE_DIR $SARGS |& tee -a $SAVE_DIR/output.log
+time python -m multiproc main.py $DATA_DIR --sz $SIZE -j 8 --fp16 --epochs 80 -b $BS --loss-scale 512 --save-dir $SAVE_DIR $SARGS |& tee -a $SAVE_DIR/output.log
 echo "$(date '+%Y-%m-%d-%H-%M-%S') Training finished." |& tee -a $SAVE_DIR/script.log
 scp -o StrictHostKeyChecking=no -r $SAVE_DIR ubuntu@aws-m5.mine.nu:~/data/imagenet_training
 
