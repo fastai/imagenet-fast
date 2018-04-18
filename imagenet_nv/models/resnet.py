@@ -1,9 +1,6 @@
 import torch.nn as nn, math, torch.nn.functional as F
 from .layers import *
 
-__all__ = ['ResNet', 'fa_resnet50']
-
-
 def conv(in_planes, out_planes, ks=3, stride=1):
     return nn.Conv2d(in_planes, out_planes, kernel_size=ks, stride=stride, padding=ks//2, bias=False)
 
