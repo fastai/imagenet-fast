@@ -36,7 +36,7 @@ class Bottleneck(nn.Module):
 
 
 class ResNet(nn.Module):
-    def __init__(self, block, layer_szs, num_classes=1000, init=True, expansion=4, bn_final=False, bn_zero=False):
+    def __init__(self, block, layer_szs, num_classes=1000, init=True, expansion=4, k=1, bn_final=False, bn_zero=False):
         super(ResNet, self).__init__()
         self.inplanes = 64
         self.expansion,self.bn_final,self.bn_zero = expansion,bn_final,bn_zero
@@ -44,7 +44,7 @@ class ResNet(nn.Module):
         layers = [conv(3, 64, ks=7, stride=2), bn(64), nn.ReLU(inplace=True),
                   nn.MaxPool2d(kernel_size=3, stride=2, padding=1)]
         for i,layer_sz in enumerate(layer_szs):
-            layers += self._make_layer(block, 64*(2**i), layer_sz, stride=1 if i==0 else 2)
+            layers += self._make_layer(block, int(64*(2**i)*k), layer_sz, stride=1 if i==0 else 2)
         layers += [nn.AdaptiveAvgPool2d(1), Flatten(), nn.Linear(512 * self.expansion, num_classes)]
         self.features = nn.Sequential(*layers)
 
@@ -76,4 +76,5 @@ def bnfinal_resnet50(pretrained=False, **kwargs): return ResNet(Bottleneck, [3, 
 def noinit_resnet50(pretrained=False, **kwargs): return ResNet(Bottleneck, [3, 4, 6, 3], init=False)
 def fa5_resnet50(pretrained=False, **kwargs): return ResNet(Bottleneck, [3, 3, 4, 3], expansion=5, bn_final=True)
 def fa4_resnet50(pretrained=False, **kwargs): return ResNet(Bottleneck, [3, 4, 6, 3], bn_final=True, bn_zero=True)
+def w15_resnet50(pretrained=False, **kwargs): return ResNet(Bottleneck, [3, 4, 6, 3], bn_final=True, bn_zero=True, k=1.5)
 
