@@ -25,8 +25,6 @@ model_names = sorted(name for name in models.__dict__
                      and callable(models.__dict__[name]))
 # print(model_names)
 
-# Example usage: python run_fastai.py /home/paperspace/ILSVRC/Data/CLS-LOC/ -a resnext_50_32x4d --epochs 1 -j 4 -b 64 --fp16
-
 def get_parser():
     parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')
     parser.add_argument('data', metavar='DIR', help='path to dataset')
@@ -259,7 +257,12 @@ def main():
     wd=2e-5
     update_model_dir(learner, args.save_dir)
     fit(learner, '1', 0.03, 1, train_sampler, wd)
-    data, train_sampler = torch_loader(args.data, 224, 192)
+
+    data, train_sampler = torch_loader(f'{args.data}-sz/320', 128, 256)
+    learner.set_data(data)
+    fit(learner, '3', 1e-1, 1, train_sampler, wd)
+
+    data, train_sampler = torch_loader(args.data, 128, 256)
     learner.set_data(data)
     fit(learner, '3', 1e-1, 1, train_sampler, wd)
     print('Finished!')
