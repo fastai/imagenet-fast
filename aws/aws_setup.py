@@ -21,11 +21,10 @@ def get_vpc_info(vpc, availability_zone=None):
         vpc_tag_name = list(filter(lambda i: i['Key'] == 'Name', vpc.tags))[0]['Value']
         sg = list(vpc.security_groups.filter(Filters=[{'Name': 'group-name', 'Values': [f'{vpc_tag_name}-security-group']}]))[0]
         subnet_filters = [{'Name': 'tag-value', 'Values': [f'{vpc_tag_name}-subnet']}]
-        if availability_zone:
-            subnet_filters.append({'Name': 'tag-value', 'Values': [availability_zone]})
+        #import pdb; pdb.set_trace()
+        if availability_zone: subnet_filters.append({'Name': 'tag-value', 'Values': [availability_zone]})
         subnet = list(vpc.subnets.filter(Filters=subnet_filters))[0]
-    except Exception as e:
-        print('Could not get VPC info: ', e)
+    except Exception as e: print('Could not get VPC info: ', e)
     return sg.id, subnet.id
 
 def create_ec2_keypair(name):
