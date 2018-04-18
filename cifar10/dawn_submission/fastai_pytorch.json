@@ -1,0 +1,11 @@
+{
+    "version": "v1.0",
+    "author": "Fast.ai 2018 Part 2 team",
+    "authorEmail": "blah@fast.ai",
+    "framework": "Fast.ai",
+    "codeURL": "https://github.com/stanford-futuredata/dawn-bench-models/tree/master/pytorch/CIFAR10",
+    "model": "Custom Wide Resnet",
+    "hardware": "8 * V100 (AWS p3.xlarge)",
+    "costPerHour": 0.967,
+    "timestamp": "2018-04-18"
+}
