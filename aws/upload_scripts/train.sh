@@ -52,11 +52,6 @@ rm ~/data/imagenet/val/meta.pkl
 mkdir $DATA_DIR-160/broken
 mv $DATA_DIR-160/train/n02105855/n02105855_2933.JPEG $DATA_DIR-160/broken
 
-if [[ -n "$WARMUP" ]]; then
-    echo "$(date '+%Y-%m-%d-%H-%M-%S') Warming up volume." |& tee -a $SAVE_DIR/script.log
-    python -m multiproc jh_warm.py ~/data/imagenet -j 8 -a fa_resnet50 --fp16
-fi
-
 cd ~/data/imagenet
 bash ~/git/imagenet-fast/imagenet_nv/blacklist.sh
 cd ../imagenet-sz/160/
@@ -64,6 +59,9 @@ bash ~/git/imagenet-fast/imagenet_nv/blacklist.sh
 cd ../320/
 bash ~/git/imagenet-fast/imagenet_nv/blacklist.sh
 cd ~/git/imagenet-fast/imagenet_nv
+
+echo "$(date '+%Y-%m-%d-%H-%M-%S') Warming up volume." |& tee -a $SAVE_DIR/script.log
+python -m multiproc jh_warm.py ~/data/imagenet -j 8 -a fa_resnet50 --fp16
 
 if [[ ! -z $SCRIPT ]]; then
     echo "$(date '+%Y-%m-%d-%H-%M-%S') Running script: $SCRIPT $SAVE_DIR" |& tee -a $SAVE_DIR/script.log
