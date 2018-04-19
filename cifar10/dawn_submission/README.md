@@ -17,14 +17,14 @@ Dataset from:
 
     http://files.fast.ai/data/cifar10.tgz
 
-## Graph
+## Graphs
 
 ![loss](loss_plot.png "loss")
-![learning rate](lr_plot "learning rate")
+![learning rate](lr_plot.png "learning rate")
 
 ## Paper
 
-You should check out "A disciplined approach to neural network hyper-parameters: Part 1 -- learning rate, batch size, momentum, and weight decay".
+You should check out "A disciplined approach to neural network hyper-parameters: Part 1 -- learning rate, batch size, momentum, and weight decay":
 
     https://arxiv.org/abs/1803.09820
 
