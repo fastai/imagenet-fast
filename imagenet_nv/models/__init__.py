@@ -1,4 +1,4 @@
-from torchvision.models.resnet import *
+#from torchvision.models.resnet import *
 from .resnet import *
 from .resnet3 import *
 from .dpn import *
