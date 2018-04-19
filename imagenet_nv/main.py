@@ -100,7 +100,7 @@ def get_loaders(traindir, valdir):
 
     val_loader = torch.utils.data.DataLoader(
         val_dataset, batch_size=int(args.batch_size*1.6), shuffle=False,
-        num_workers=args.workers, pin_memory=True, sampler=val_sampler)
+        num_workers=args.workers, pin_memory=True)#, sampler=val_sampler)
 
     return train_loader,val_loader,train_sampler,val_sampler
 
@@ -149,7 +149,7 @@ def main():
         else: print("=> no checkpoint found at '{}'".format(args.resume))
 
     traindir = os.path.join(args.data, 'train')
-    valdir = os.path.join(args.data, 'val')
+    valdir = os.path.join(args.data, 'val2')
     train_loader,val_loader,train_sampler,val_sampler = get_loaders(traindir, valdir)
 
     if args.evaluate: return validate(val_loader, model, criterion)
@@ -160,6 +160,7 @@ def main():
             val_sampler.set_epoch(epoch)
         adjust_learning_rate(optimizer, epoch)
         if epoch==args.epochs-10:
+            valdir = os.path.join(args.data, 'val')
             args.sz=288
             args.batch_size=128
             train_loader,val_loader,train_sampler,val_sampler = get_loaders(traindir, valdir)
