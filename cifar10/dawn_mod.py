@@ -234,7 +234,7 @@ class ImagenetLoggingCallback(Callback):
     def on_epoch_end(self, metrics):
         current_time = datetime.now()
         time_diff = current_time - self.start_time
-        log_str = f'{self.epoch}\t{float(time_diff.seconds/3600.0)}\t{metrics[1]}'
+        log_str = f'{self.epoch}\t{float(time_diff.total_seconds() / 3600.0)}\t{100 * metrics[1]}'
         #for (k,v) in zip(['val_loss', 'acc'], metrics): if k=='acc': log_str += f'\t{k}:{v}'
         self.log(log_str)
         self.epoch += 1

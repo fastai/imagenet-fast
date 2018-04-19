@@ -76,33 +76,32 @@ def get_parser():
 cudnn.benchmark = True
 args = get_parser().parse_args()
 
-def get_loaders(traindir, valdir, use_val_sampler=True, min_scale=0.08):
+def get_loaders(traindir, valdir):
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     tensor_tfm = [transforms.ToTensor(), normalize]
 
     train_dataset = datasets.ImageFolder(
-        traindir, transforms.Compose([
-            transforms.RandomResizedCrop(args.sz, scale=(min_scale, 1.0)),
+        traindir,
+        transforms.Compose([
+            transforms.RandomResizedCrop(args.sz),
             transforms.RandomHorizontalFlip(),
-        ] + tensor_tfm))
-    val_dataset = datasets.ImageFolder(
-        valdir, transforms.Compose([
-            transforms.Resize(int(args.sz*1.14)),
-            transforms.CenterCrop(args.sz),
         ] + tensor_tfm))
 
     train_sampler = (torch.utils.data.distributed.DistributedSampler(train_dataset) if args.distributed else None)
-    val_sampler = (torch.utils.data.distributed.DistributedSampler(val_dataset) if args.distributed else None)
 
     train_loader = torch.utils.data.DataLoader(
         train_dataset, batch_size=args.batch_size, shuffle=(train_sampler is None),
         num_workers=args.workers, pin_memory=True, sampler=train_sampler)
 
     val_loader = torch.utils.data.DataLoader(
-        val_dataset, batch_size=int(args.batch_size), shuffle=False,
-        num_workers=args.workers, pin_memory=True, sampler=val_sampler if use_val_sampler else None)
+        datasets.ImageFolder(valdir, transforms.Compose([
+            transforms.Resize(int(args.sz*1.14)),
+            transforms.CenterCrop(args.sz),
+        ] + tensor_tfm)),
+        batch_size=args.batch_size*2, shuffle=False,
+        num_workers=args.workers, pin_memory=False)
 
-    return train_loader,val_loader,train_sampler,val_sampler
+    return train_loader,val_loader,train_sampler
 
 
 def main():
@@ -150,22 +149,13 @@ def main():
 
     traindir = os.path.join(args.data, 'train')
     valdir = os.path.join(args.data, 'val')
-    train_loader,val_loader,train_sampler,val_sampler = get_loaders(
-        traindir, valdir, use_val_sampler=True)
+    train_loader,val_loader,train_sampler = get_loaders(traindir, valdir)
 
     if args.evaluate: return validate(val_loader, model, criterion)
 
     for epoch in range(args.start_epoch, args.epochs):
+        if args.distributed: train_sampler.set_epoch(epoch)
         adjust_learning_rate(optimizer, epoch)
-        if epoch==args.epochs-10:
-            args.sz=288
-            args.batch_size=128
-            train_loader,val_loader,train_sampler,val_sampler = get_loaders(
-                traindir, valdir, use_val_sampler=False, min_scale=0.5)
-
-        if args.distributed:
-            train_sampler.set_epoch(epoch)
-            val_sampler.set_epoch(epoch)
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=UserWarning)
@@ -235,6 +225,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
     i = -1
     while input is not None:
         i += 1
+
         if args.prof and (i > 200): break
         # measure data loading time
         data_time.update(time.time() - end)
@@ -380,11 +371,8 @@ class AverageMeter(object):
 
 def adjust_learning_rate(optimizer, epoch):
     """Sets the learning rate to the initial LR decayed by 10 every few epochs"""
-    if   epoch<3 : lr = args.lr/(3-epoch)
-    elif epoch<30: lr = args.lr/1
-    elif epoch<55: lr = args.lr/10
-    elif epoch<75: lr = args.lr/100
-    else         : lr = args.lr/1000
+    lr = args.lr * (0.1 ** (epoch // args.decay_int))
+    if epoch<5: lr = args.lr/(5-epoch)
     for param_group in optimizer.param_groups: param_group['lr'] = lr
 
 
