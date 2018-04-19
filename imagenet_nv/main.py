@@ -76,13 +76,13 @@ def get_parser():
 cudnn.benchmark = True
 args = get_parser().parse_args()
 
-def get_loaders(traindir, valdir):
+def get_loaders(traindir, valdir, use_val_sampler=True, min_scale=0.08):
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     tensor_tfm = [transforms.ToTensor(), normalize]
 
     train_dataset = datasets.ImageFolder(
         traindir, transforms.Compose([
-            transforms.RandomResizedCrop(args.sz),
+            transforms.RandomResizedCrop(args.sz, scale=(min_scale, 1.0)),
             transforms.RandomHorizontalFlip(),
         ] + tensor_tfm))
     val_dataset = datasets.ImageFolder(
@@ -99,8 +99,8 @@ def get_loaders(traindir, valdir):
         num_workers=args.workers, pin_memory=True, sampler=train_sampler)
 
     val_loader = torch.utils.data.DataLoader(
-        val_dataset, batch_size=int(args.batch_size*1.6), shuffle=False,
-        num_workers=args.workers, pin_memory=True)#, sampler=val_sampler)
+        val_dataset, batch_size=int(args.batch_size), shuffle=False,
+        num_workers=args.workers, pin_memory=True, sampler=val_sampler if use_val_sampler else None)
 
     return train_loader,val_loader,train_sampler,val_sampler
 
@@ -149,21 +149,23 @@ def main():
         else: print("=> no checkpoint found at '{}'".format(args.resume))
 
     traindir = os.path.join(args.data, 'train')
-    valdir = os.path.join(args.data, 'val2')
-    train_loader,val_loader,train_sampler,val_sampler = get_loaders(traindir, valdir)
+    valdir = os.path.join(args.data, 'val')
+    train_loader,val_loader,train_sampler,val_sampler = get_loaders(
+        traindir, valdir, use_val_sampler=True)
 
     if args.evaluate: return validate(val_loader, model, criterion)
 
     for epoch in range(args.start_epoch, args.epochs):
+        adjust_learning_rate(optimizer, epoch)
+        if epoch==args.epochs-10:
+            args.sz=288
+            args.batch_size=128
+            train_loader,val_loader,train_sampler,val_sampler = get_loaders(
+                traindir, valdir, use_val_sampler=False, min_scale=0.5)
+
         if args.distributed:
             train_sampler.set_epoch(epoch)
             val_sampler.set_epoch(epoch)
-        adjust_learning_rate(optimizer, epoch)
-        if epoch==args.epochs-10:
-            valdir = os.path.join(args.data, 'val')
-            args.sz=288
-            args.batch_size=128
-            train_loader,val_loader,train_sampler,val_sampler = get_loaders(traindir, valdir)
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=UserWarning)
