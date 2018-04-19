@@ -55,7 +55,7 @@ class WideResNet(nn.Module):
                    Flatten(), nn.Linear(n_channels[3], num_classes)]
         self.features = nn.Sequential(*layers)
 
-    def forward(self, x): return self.features(out)
+    def forward(self, x): return self.features(x)
 
 
 def wrn_22(): return WideResNet(num_groups=3, N=3, num_classes=10, k=6, drop_p=0.)
