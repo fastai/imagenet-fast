@@ -55,10 +55,10 @@ parser.add_argument('--lr', '--learning-rate', default=0.1, type=float,
 parser.add_argument('--momentum', default=0.9, type=float, metavar='M', help='momentum')
 parser.add_argument('--weight-decay', '--wd', default=1e-4, type=float,
                     metavar='W', help='weight decay (default: 1e-4)')
-# parser.add_argument('--print-freq', '-p', default=10, type=int,
-#                     metavar='N', help='print frequency (default: 10)')
-# parser.add_argument('--resume', default='', type=str, metavar='PATH',
-#                     help='path to latest checkpoint (default: none)')
+parser.add_argument('--print-freq', '-p', default=50, type=int,
+                    metavar='N', help='print frequency (default: 10)')
+parser.add_argument('--resume', default='', type=str, metavar='PATH',
+                    help='path to latest checkpoint (default: none)')
 # parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true',
 #                     help='evaluate model on validation set')
 parser.add_argument('--pretrained', dest='pretrained', action='store_true', help='use pre-trained model')
@@ -218,10 +218,10 @@ def top5(output, target):
 
 # Creating a custom logging callback. Fastai logger actually hurts performance by writing every batch.
 class ImagenetLoggingCallback(Callback):
-    def __init__(self, save_path, print_every=50):
+    def __init__(self, save_path, print_freq=50):
         super().__init__()
         self.save_path=save_path
-        self.print_every=print_every
+        self.print_freq=print_freq
     def on_train_begin(self):
         self.batch = 0
         self.epoch = 0
@@ -235,7 +235,7 @@ class ImagenetLoggingCallback(Callback):
     def on_batch_end(self, metrics):
         self.last_loss = metrics
         self.batch += 1
-        if self.batch % self.print_every == 0:
+        if self.batch % self.print_freq == 0:
             self.log(f'Epoch: {self.epoch} Batch: {self.batch} Metrics: {metrics}')
     def on_train_end(self):
         self.log("\ton_train_end")
@@ -253,7 +253,7 @@ def save_args(name, save_dir):
         'best_save_name': f'{name}_best_model',
         'cycle_save_name': f'{name}',
         'callbacks': [
-            ImagenetLoggingCallback(f'{log_dir}/{name}_log.txt')
+            ImagenetLoggingCallback(f'{log_dir}/{name}_log.txt', args.print_freq)
         ]
     }
 
@@ -302,6 +302,14 @@ def main():
     learner.crit = F.cross_entropy
     learner.metrics = [accuracy, top5]
     if args.fp16: learner.half()
+
+    # optionally resume from a checkpoint
+    if args.resume:
+        if os.path.isfile(args.resume):
+            print("=> loading checkpoint '{}'".format(args.resume))
+            if args.resume.endswith('.h5'): args.resume = args.resume[:-len('.h5')]
+            learner.load(args.resume)
+        else: print("=> no checkpoint found at '{}'".format(args.resume))    
 
     if args.prof:
         args.epochs = 1

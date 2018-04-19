@@ -21,6 +21,7 @@ class BasicBlock(nn.Module):
         self.equalInOut = (in_planes == out_planes)
         self.convShortcut = (not self.equalInOut) and nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=stride,
                                padding=0, bias=False) or None
+
     def forward(self, x):
         if not self.equalInOut: x   = self.relu1(self.bn1(x))
         else:                   out = self.relu1(self.bn1(x))
@@ -76,3 +77,6 @@ class WideResNet(nn.Module):
         out = F.adaptive_avg_pool2d(out, 1)
         out = out.view(-1, self.nChannels)
         return self.fc(out)
+
+def wrn_22(): return WideResNet(depth=22, num_classes=10, widen_factor=6, dropRate=0.)
+

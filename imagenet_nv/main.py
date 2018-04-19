@@ -76,33 +76,32 @@ def get_parser():
 cudnn.benchmark = True
 args = get_parser().parse_args()
 
-def get_loaders(traindir, valdir, use_val_sampler=True, min_scale=0.08):
+def get_loaders(traindir, valdir):
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     tensor_tfm = [transforms.ToTensor(), normalize]
 
     train_dataset = datasets.ImageFolder(
-        traindir, transforms.Compose([
-            transforms.RandomResizedCrop(args.sz, scale=(min_scale, 1.0)),
+        traindir,
+        transforms.Compose([
+            transforms.RandomResizedCrop(args.sz),
             transforms.RandomHorizontalFlip(),
-        ] + tensor_tfm))
-    val_dataset = datasets.ImageFolder(
-        valdir, transforms.Compose([
-            transforms.Resize(int(args.sz*1.14)),
-            transforms.CenterCrop(args.sz),
         ] + tensor_tfm))
 
     train_sampler = (torch.utils.data.distributed.DistributedSampler(train_dataset) if args.distributed else None)
-    val_sampler = (torch.utils.data.distributed.DistributedSampler(val_dataset) if args.distributed else None)
 
     train_loader = torch.utils.data.DataLoader(
         train_dataset, batch_size=args.batch_size, shuffle=(train_sampler is None),
         num_workers=args.workers, pin_memory=True, sampler=train_sampler)
 
     val_loader = torch.utils.data.DataLoader(
-        val_dataset, batch_size=int(args.batch_size), shuffle=False,
-        num_workers=args.workers, pin_memory=True, sampler=val_sampler if use_val_sampler else None)
+        datasets.ImageFolder(valdir, transforms.Compose([
+            transforms.Resize(int(args.sz*1.14)),
+            transforms.CenterCrop(args.sz),
+        ] + tensor_tfm)),
+        batch_size=args.batch_size*2, shuffle=False,
+        num_workers=args.workers, pin_memory=False)
 
-    return train_loader,val_loader,train_sampler,val_sampler
+    return train_loader,val_loader,train_sampler
 
 
 def main():
@@ -152,12 +151,12 @@ def main():
 
     traindir = os.path.join(args.data, 'train')
     valdir = os.path.join(args.data, 'val')
-    train_loader,val_loader,train_sampler,val_sampler = get_loaders(
-        traindir, valdir, use_val_sampler=True)
+    train_loader,val_loader,train_sampler = get_loaders(traindir, valdir)
 
     if args.evaluate: return validate(val_loader, model, criterion, epoch, start_time)
 
     for epoch in range(args.start_epoch, args.epochs):
+        if args.distributed: train_sampler.set_epoch(epoch)
         adjust_learning_rate(optimizer, epoch)
         if epoch==args.epochs-6:
             args.sz=288
@@ -237,6 +236,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
     i = -1
     while input is not None:
         i += 1
+
         if args.prof and (i > 200): break
         # measure data loading time
         data_time.update(time.time() - end)

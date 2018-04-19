@@ -22,6 +22,11 @@ case $key in
     shift # past argument
     shift # past value
     ;;
+    -resume|--resume_h5_file)
+    RESUME="$2"
+    shift # past argument
+    shift # past value
+    ;;
     -multi|--use_multiproc)
     MULTI="$1"
     shift # past argument
@@ -68,6 +73,11 @@ cd ~/git/imagenet-fast/imagenet_nv
 git pull
 git checkout custom_script
 
+# Cleanup. Might not be a problem in newest AMI
+sudo apt update && sudo apt install -y libsm6 libxext6
+pip install torchtext
+pip uninstall pillow --yes
+CC="cc -mavx2" pip install -U --force-reinstall pillow-simd
 # Rogue files in validation set
 rm ~/data/imagenet/val/make-data.py
 rm ~/data/imagenet/val/valprep.sh
@@ -78,17 +88,28 @@ mv $DATA_DIR-160/train/n02105855/n02105855_2933.JPEG $DATA_DIR-160/broken
 
 if [[ -n "$WARMUP" ]]; then
     echo "$(date '+%Y-%m-%d-%H-%M-%S') Warming up volume." |& tee -a $SAVE_DIR/script.log
-    python -m multiproc jh_warm.py ~/data/imagenet -j 8 -a fa_resnet50 -b 256 --fp16
+    # libaio engine enables async random reads/writes. 
+    # If server bootup time doesn't matter, we can do a complete warmup by using dd and copy $DATA_DIR to /dev/null
+    # https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ebs-initialize.html 
+    # sudo dd if=$DATA_DIR of=/dev/null
+    sudo apt install fio -y
+    if [[ $SARGS = *"train-128"* ]]; then
+        sudo fio --directory=$DATA_DIR-160 --rw=randread --bs=128k --iodepth=32 --ioengine=libaio --direct=1 --name=volume-warmup -size=40G
+        tmux new-window -t imagenet -n 2 -d
+        tmux send-keys -t imagenet:2 "sudo fio --directory=$DATA_DIR --rw=randread --bs=128k --iodepth=32 --ioengine=libaio --direct=1 --name=volume-warmup -size=80G" Enter
+    else
+        sudo fio --directory=$DATA_DIR --rw=randread --bs=128k --iodepth=32 --ioengine=libaio --direct=1 --name=volume-warmup -size=40G
+    fi
 fi
 
-cd ~/data/imagenet
-bash ~/git/imagenet-fast/imagenet_nv/blacklist.sh
-cd ../imagenet-sz/160/
-bash ~/git/imagenet-fast/imagenet_nv/blacklist.sh
-cd ../320/
-bash ~/git/imagenet-fast/imagenet_nv/blacklist.sh
-cd ~/git/imagenet-fast/imagenet_nv
 
+if [[ -n "$RESUME" ]]; then
+    echo Resuming from file $RESUME
+    RESUME_DIR=$SAVE_DIR/resume
+    mkdir $RESUME_DIR
+    scp -o StrictHostKeyChecking=no ubuntu@aws-m5.mine.nu:$RESUME $RESUME_DIR
+    SARGS="$SARGS --resume $RESUME_DIR/$(basename $RESUME)"
+fi
 # Run fastai_imagenet
 echo "$(date '+%Y-%m-%d-%H-%M-%S') Running script: time python $MULTI jh_tmp.py $DATA_DIR --save-dir $SAVE_DIR $SARGS" |& tee -a $SAVE_DIR/script.log
 time python $MULTI jh_tmp.py $DATA_DIR --save-dir $SAVE_DIR $SARGS |& tee -a $SAVE_DIR/output.log
@@ -102,4 +123,3 @@ if [[ -n "$SHUTDOWN" ]]; then
 else
     echo Done. Please remember to shut instance down when no longer needed.
 fi
-
