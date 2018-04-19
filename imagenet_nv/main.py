@@ -81,27 +81,28 @@ def get_loaders(traindir, valdir):
     tensor_tfm = [transforms.ToTensor(), normalize]
 
     train_dataset = datasets.ImageFolder(
-        traindir,
-        transforms.Compose([
+        traindir, transforms.Compose([
             transforms.RandomResizedCrop(args.sz),
             transforms.RandomHorizontalFlip(),
         ] + tensor_tfm))
+    val_dataset = datasets.ImageFolder(
+        valdir, transforms.Compose([
+            transforms.Resize(int(args.sz*1.14)),
+            transforms.CenterCrop(args.sz),
+        ] + tensor_tfm))
 
     train_sampler = (torch.utils.data.distributed.DistributedSampler(train_dataset) if args.distributed else None)
+    val_sampler = (torch.utils.data.distributed.DistributedSampler(val_dataset) if args.distributed else None)
 
     train_loader = torch.utils.data.DataLoader(
         train_dataset, batch_size=args.batch_size, shuffle=(train_sampler is None),
         num_workers=args.workers, pin_memory=True, sampler=train_sampler)
 
     val_loader = torch.utils.data.DataLoader(
-        datasets.ImageFolder(valdir, transforms.Compose([
-            transforms.Resize(int(args.sz*1.14)),
-            transforms.CenterCrop(args.sz),
-        ] + tensor_tfm)),
-        batch_size=int(args.batch_size*1.6), shuffle=False,
-        num_workers=args.workers, pin_memory=False)
+        val_dataset, batch_size=int(args.batch_size*1.6), shuffle=False,
+        num_workers=args.workers, pin_memory=True, sampler=val_sampler)
 
-    return train_loader,val_loader,train_sampler
+    return train_loader,val_loader,train_sampler,val_sampler
 
 
 def main():
@@ -149,13 +150,19 @@ def main():
 
     traindir = os.path.join(args.data, 'train')
     valdir = os.path.join(args.data, 'val')
-    train_loader,val_loader,train_sampler = get_loaders(traindir, valdir)
+    train_loader,val_loader,train_sampler,val_sampler = get_loaders(traindir, valdir)
 
     if args.evaluate: return validate(val_loader, model, criterion)
 
     for epoch in range(args.start_epoch, args.epochs):
-        if args.distributed: train_sampler.set_epoch(epoch)
+        if args.distributed:
+            train_sampler.set_epoch(epoch)
+            val_sampler.set_epoch(epoch)
         adjust_learning_rate(optimizer, epoch)
+        if epoch==args.epochs-10:
+            args.sz=288
+            args.batch_size=128
+            train_loader,val_loader,train_sampler,val_sampler = get_loaders(traindir, valdir)
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=UserWarning)
@@ -225,7 +232,6 @@ def train(train_loader, model, criterion, optimizer, epoch):
     i = -1
     while input is not None:
         i += 1
-
         if args.prof and (i > 200): break
         # measure data loading time
         data_time.update(time.time() - end)
@@ -375,7 +381,7 @@ def adjust_learning_rate(optimizer, epoch):
     elif epoch<30: lr = args.lr/1
     elif epoch<55: lr = args.lr/10
     elif epoch<75: lr = args.lr/100
-    else         : lr = args.lr/100
+    else         : lr = args.lr/1000
     for param_group in optimizer.param_groups: param_group['lr'] = lr
 
 
