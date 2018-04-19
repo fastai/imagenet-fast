@@ -3,9 +3,15 @@
     "author": "fast.ai + students",
     "authorEmail": "j@fast.ai",
     "framework": "fastai / pytorch",
-    "codeURL": "https://github.com/fastai/imagenet-fast/",
-    "model": "Custom Wide Resnet",
+    "codeURL": "https://github.com/fastai/imagenet-fast/commit/2748de3b0e28ecca1e02d90b2d5bf7d9b9e58e3d",
+    "model": "Custom Wide Resnet (https://github.com/fastai/imagenet-fast/blob/2748de3b0e28ecca1e02d90b2d5bf7d9b9e58e3d/cifar10/models/wideresnet.py#L60)",
     "hardware": "8 * V100 (AWS p3.xlarge)",
-    "costPerHour": 8.68,
-    "timestamp": "2018-04-18"
+    "costPerHour": 24.48,
+    "timestamp": "2018-04-18",
+    "misc": {
+		"1cycle parameters": "cycles: 50, learning-rates: 50,15, cyclical max/min momentum: 0.95,0.85",
+		"paper": "A disciplined approach to neural network hyper-parameters: Part 1 -- learning rate, batch size, momentum, and weight decay: https://arxiv.org/abs/1803.09820",
+    	"fastai master sha1": "https://github.com/fastai/fastai/commit/f9c3d22cdb79e9438c308e3baeb91f04944081fe",
+    	"pytorch master sha1": "https://github.com/pytorch/pytorch/commit/354dac976905ba718ea94a73c11587438ae86cde"
+    }
 }

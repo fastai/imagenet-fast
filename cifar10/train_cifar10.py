@@ -52,7 +52,7 @@ parser.add_argument('--arch', '-a', metavar='ARCH', default='resnet56',
                     help='model architecture: ' +
                     ' | '.join(model_names) +
                     ' (default: resnet56)')
-parser.add_argument('--data-parallel', default=False, type=bool, help='Use DataParallel')
+parser.add_argument('-dp', '--data-parallel', default=False, type=bool, help='Use DataParallel')
 parser.add_argument('-j', '--workers', default=7, type=int, metavar='N',
                     help='number of data loading workers (default: 4)')
 parser.add_argument('--epochs', default=1, type=int, metavar='N',

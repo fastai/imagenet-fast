@@ -34,7 +34,7 @@ class BasicBlock(nn.Module):
         r = self.shortcut(x2)
         x = self.conv1(x2)
         if self.drop: x = self.drop(x)
-        x = self.conv2(x) ## * 0.2
+        x = self.conv2(x) * 0.2
         return x.add_(r)
 
 
