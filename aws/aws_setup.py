@@ -160,7 +160,7 @@ class LaunchSpecs:
         self.device = '/dev/sda1'
         self.volume_size = volume_size
         self.volume_type = 'gp2'
-        self.io = 10000
+        self.io = 5000
         self.delete_ebs = delete_ebs
         self.vpc_tagname = list(filter(lambda i: i['Key'] == 'Name', vpc.tags))[0]['Value']
         self.keypair_name = f'aws-key-{self.vpc_tagname}'
