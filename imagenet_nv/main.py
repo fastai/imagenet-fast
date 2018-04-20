@@ -1,4 +1,4 @@
-import argparse, os, shutil, time, warnings
+import argparse, os, shutil, time, warnings, datetime
 from pathlib import Path
 import numpy as np
 
@@ -105,6 +105,8 @@ def get_loaders(traindir, valdir):
 
 
 def main():
+    print("~~epoch\thours\ttop1Accuracy\n")
+    start_time = datetime.now()
     args.distributed = args.world_size > 1
     args.gpu = 0
     if args.distributed:
@@ -151,18 +153,27 @@ def main():
     valdir = os.path.join(args.data, 'val')
     train_loader,val_loader,train_sampler = get_loaders(traindir, valdir)
 
-    if args.evaluate: return validate(val_loader, model, criterion)
+    if args.evaluate: return validate(val_loader, model, criterion, epoch, start_time)
 
     for epoch in range(args.start_epoch, args.epochs):
         if args.distributed: train_sampler.set_epoch(epoch)
         adjust_learning_rate(optimizer, epoch)
+        if epoch==args.epochs-6:
+            args.sz=288
+            args.batch_size=128
+            train_loader,val_loader,train_sampler,val_sampler = get_loaders(
+                traindir, valdir, use_val_sampler=False, min_scale=0.5)
+
+        if args.distributed:
+            train_sampler.set_epoch(epoch)
+            val_sampler.set_epoch(epoch)
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=UserWarning)
             train(train_loader, model, criterion, optimizer, epoch)
 
         if args.prof: break
-        prec1 = validate(val_loader, model, criterion)
+        prec1 = validate(val_loader, model, criterion, epoch, start_time)
 
         if args.rank == 0:
             is_best = prec1 > best_prec1
@@ -288,7 +299,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
                    data_time=data_time, loss=losses, top1=top1, top5=top5))
 
 
-def validate(val_loader, model, criterion):
+def validate(val_loader, model, criterion, epoch, start_time):
     batch_time = AverageMeter()
     losses = AverageMeter()
     top1 = AverageMeter()
@@ -339,8 +350,9 @@ def validate(val_loader, model, criterion):
 
         input, target = prefetcher.next()
 
-    print(' * Prec@1 {top1.avg:.3f} Prec@5 {top5.avg:.3f}'
-          .format(top1=top1, top5=top5))
+    time_diff = datetime.now()-start_time
+    print(f'~~{epoch}\t{float(time_diff.total_seconds() / 3600.0)}\t{top5.avg:.3f}\n')
+    print(' * Prec@1 {top1.avg:.3f} Prec@5 {top5.avg:.3f}'.format(top1=top1, top5=top5))
 
     return top1.avg
 
@@ -371,8 +383,11 @@ class AverageMeter(object):
 
 def adjust_learning_rate(optimizer, epoch):
     """Sets the learning rate to the initial LR decayed by 10 every few epochs"""
-    lr = args.lr * (0.1 ** (epoch // args.decay_int))
-    if epoch<5: lr = args.lr/(5-epoch)
+    if   epoch<4 : lr = args.lr/(4-epoch)
+    elif epoch<28: lr = args.lr/1
+    elif epoch<47: lr = args.lr/10
+    elif epoch<57: lr = args.lr/100
+    else         : lr = args.lr/1000
     for param_group in optimizer.param_groups: param_group['lr'] = lr
 
 
