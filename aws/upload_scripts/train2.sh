@@ -89,7 +89,7 @@ echo "$(date '+%Y-%m-%d-%H-%M-%S') Warming up volume." |& tee -a $SAVE_DIR/scrip
 python -m multiproc jh_warm.py ~/data/imagenet -j 8 -a resnet50 --fp16
 
 echo "$(date '+%Y-%m-%d-%H-%M-%S') Running script: $SAVE_DIR $SARGS" |& tee -a $SAVE_DIR/script.log
-echo python -m multiproc main.py $DATA_DIR --sz $SIZE -j 8 --fp16 --epochs 80 -b $BS --loss-scale 512 --save-dir $SAVE_DIR $SARGS
+echo python -m multiproc main.py $DATA_DIR --sz $SIZE -j 8 --fp16 -b $BS --loss-scale 512 --save-dir $SAVE_DIR $SARGS
 time python -m multiproc main.py $DATA_DIR --sz $SIZE -j 8 --fp16 --epochs 80 -b $BS --loss-scale 512 --save-dir $SAVE_DIR $SARGS |& tee -a $SAVE_DIR/output.log
 echo "$(date '+%Y-%m-%d-%H-%M-%S') Training finished." |& tee -a $SAVE_DIR/script.log
 scp -o StrictHostKeyChecking=no -r $SAVE_DIR ubuntu@aws-m5.mine.nu:~/data/imagenet_training
