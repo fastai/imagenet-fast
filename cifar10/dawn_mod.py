@@ -155,7 +155,7 @@ def torch_loader(data_path, size):
 
     val_loader = torch.utils.data.DataLoader(
         val_dataset, batch_size=args.batch_size*2, shuffle=False,
-        num_workers=args.workers, pin_memory=True)
+        num_workers=args.workers, pin_memory=True, sampler=val_sampler)
 
     aug_loader = torch.utils.data.DataLoader(
         datasets.ImageFolder(valdir, train_tfms),
@@ -322,7 +322,7 @@ def main():
     sargs = save_args('first_run', args.save_dir)
 
     if args.warmup:
-        learner.fit(args.lr/10, 1, cycle_len=1, sampler=train_sampler, wds=args.weight_decay,
+        learner.fit(args.lr/10, 1, cycle_len=1, sampler=[train_sampler,val_sampler], wds=args.weight_decay,
                 use_clr_beta=(100,1,0.9,0.8), loss_scale=args.loss_scale, **sargs)
 
     learner.fit(args.lr,args.epochs, cycle_len=args.cycle_len,
