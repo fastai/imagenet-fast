@@ -1,4 +1,4 @@
-### Script
+### Script (multi-gpu)
 
 In the parent directory, run:
 
@@ -16,3 +16,9 @@ on an Amazon p3.16xlarge instance.  You will need to symlink (ln -s YOUR_FASTAI_
 Dataset from:
 
     http://files.fast.ai/data/cifar10.tgz
+
+### Script (single-gpu)
+
+In the directory on paperspace using a volta (same setup as above), run:
+
+    python dawn_mod.py ~/data/cifar10/ --save-dir ~/data/cf_train_save/wrn_small -a wrn_22 --loss-scale 1 --epochs 1 --cycle-len 30 --lr 1.5 --wd 1e-4 --use-clr 20,20,0.95,0.85
