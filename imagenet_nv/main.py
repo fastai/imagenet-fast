@@ -160,7 +160,7 @@ def main():
 
     for epoch in range(args.start_epoch, args.epochs):
         adjust_learning_rate(optimizer, epoch)
-        if epoch==args.epochs-int(arg.epochs*0.08+0.5):
+        if epoch==args.epochs-int(args.epochs*0.08+0.5):
             args.sz=288
             args.batch_size=128
             train_loader,val_loader,train_sampler,val_sampler = get_loaders(
