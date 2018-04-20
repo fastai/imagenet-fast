@@ -1,4 +1,5 @@
-import argparse, os, shutil, time, warnings, datetime.datetime as datetime
+import argparse, os, shutil, time, warnings
+from datetime import datetime
 from pathlib import Path
 import numpy as np
 

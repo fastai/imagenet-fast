@@ -141,19 +141,21 @@ def torch_loader(data_path, size):
         transforms.RandomRotation(2),
         transforms.RandomHorizontalFlip(),
     ] + tfms)
+    val_tfms = transforms.Compose(tfms)
+
     train_dataset = datasets.ImageFolder(traindir, train_tfms)
-    train_sampler = (torch.utils.data.distributed.DistributedSampler(train_dataset)
-                     if args.distributed else None)
+    val_dataset = datasets.ImageFolder(valdir, val_tfms)
+
+    train_sampler = (torch.utils.data.distributed.DistributedSampler(train_dataset) if args.distributed else None)
+    val_sampler = (torch.utils.data.distributed.DistributedSampler(val_dataset) if args.distributed else None)
+
     train_loader = torch.utils.data.DataLoader(
         train_dataset, batch_size=args.batch_size, shuffle=(train_sampler is None),
         num_workers=args.workers, pin_memory=True, sampler=train_sampler)
 
-    val_tfms = transforms.Compose(tfms)
     val_loader = torch.utils.data.DataLoader(
-        datasets.ImageFolder(valdir, val_tfms),
-        batch_size=args.batch_size*2, shuffle=False,
+        val_dataset, batch_size=args.batch_size*2, shuffle=False,
         num_workers=args.workers, pin_memory=True)
-
 
     aug_loader = torch.utils.data.DataLoader(
         datasets.ImageFolder(valdir, train_tfms),
@@ -168,7 +170,7 @@ def torch_loader(data_path, size):
         val_loader.stop_after = 0
 
     data = TorchModelData(data_path, args.sz, train_loader, val_loader, aug_loader)
-    return data, train_sampler
+    return data, train_sampler, val_sampler
 
 # Seems to speed up training by ~2%
 class DataPrefetcher():
@@ -304,7 +306,7 @@ def main():
     if args.distributed: model = DDP(model)
     if args.data_parallel: model = nn.DataParallel(model, [0,1,2,3])
 
-    data, train_sampler = torch_loader(args.data, args.sz)
+    data,train_sampler,val_sampler = torch_loader(args.data, args.sz)
 
     learner = Learner.from_model_data(model, data)
     #print (learner.summary()); exit()
