@@ -21,4 +21,4 @@ Dataset from:
 
 In the directory on paperspace using a volta (same setup as above), run:
 
-    python dawn_mod.py ~/data/cifar10/ --save-dir ~/data/cf_train_save/wrn_small -a wrn_22 --loss-scale 1 --epochs 1 --cycle-len 30 --lr 1.5 --wd 1e-4 --use-clr 20,20,0.95,0.85
+    python dawn_mod.py ~/data/cifar10/ --save-dir ~/data/cf_train_save/wrn_v5 -a wrn_22 --fp16 --loss-scale 512 --epochs 1 --cycle-len 30 --lr 1.5 --wd 1e-4 --use-clr 20,20,0.95,0.85
