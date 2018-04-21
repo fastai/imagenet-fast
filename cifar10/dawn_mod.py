@@ -245,11 +245,8 @@ class ImagenetLoggingCallback(Callback):
         self.batch += 1
         #if self.batch % self.print_every == 0:
             #self.log(f'Epoch: {self.epoch} Batch: {self.batch} Metrics: {metrics}')
-    def on_train_end(self):
-        #self.log("\ton_train_end")
-        self.f.close()
-    def log(self, string):
-        self.f.write(string+"\n")
+    def on_train_end(self): self.f.close()
+    def log(self, string): self.f.write(string+"\n")
 
 # Logging + saving models
 def save_args(name, save_dir):

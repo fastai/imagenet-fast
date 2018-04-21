@@ -162,9 +162,9 @@ def main():
     for epoch in range(args.start_epoch, args.epochs):
         adjust_learning_rate(optimizer, epoch)
         if epoch==int(args.epochs*0.4+0.5):
-	    traindir = os.path.join(args.data, 'train')
-	    valdir = os.path.join(args.data, 'val')
-	    args.sz = 224
+        traindir = os.path.join(args.data, 'train')
+        valdir = os.path.join(args.data, 'val')
+        args.sz = 224
             train_loader,val_loader,train_sampler,val_sampler = get_loaders( traindir, valdir)
         if epoch==int(args.epochs*0.92+0.5):
             args.sz=288
