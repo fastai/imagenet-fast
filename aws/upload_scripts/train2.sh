@@ -69,7 +69,7 @@ git pull
 git checkout custom_script
 
 cd ~/data/imagenet
-bash ~/git/imagenet-fast/imagenet_nv/blacklist.sh
+bash ~/git/imagenet-fast/aws/upload_scripts/blacklist.sh
 cd ../imagenet-sz/160/
 bash ~/git/imagenet-fast/imagenet_nv/blacklist.sh
 cd ../320/
