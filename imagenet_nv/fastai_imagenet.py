@@ -73,7 +73,7 @@ def get_parser():
     return parser
 
 def torch_loader(data_path, use_val_sampler=True, train_sampler=None, val_sampler=None, min_scale=0.08, bs=192):
-    traindir = os.path.join(data_path, 'train')
+    traindir = os.path.join(data_path, 'val')
     valdir = os.path.join(data_path, 'val')
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     tensor_tfm = [transforms.ToTensor(), normalize]
@@ -255,8 +255,8 @@ def main():
         TrainingPhase(**def_phase, epochs=epoch_sched[0]-6, lr=lr),
         TrainingPhase(**def_phase, epochs=2,                lr=lr),
         TrainingPhase(**def_phase, epochs=epoch_sched[1],   lr=lr/10),
-        TrainingPhase(**def_phase, epochs=epoch_sched[2]-1, lr=lr/100),
-        TrainingPhase(**def_phase, epochs=1,                lr=lr/100),
+        TrainingPhase(**def_phase, epochs=epoch_sched[2]-2, lr=lr/100),
+        TrainingPhase(**def_phase, epochs=2,                lr=lr/100),
         TrainingPhase(**def_phase, epochs=epoch_sched[3],   lr=lr/1000)]
 
     learner.fit_opt_sched(phases, data_list=data, sampler=[train_sampler,val_sampler], loss_scale=args.loss_scale, **sargs)
