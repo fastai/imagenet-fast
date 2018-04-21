@@ -25,10 +25,8 @@ model_names = sorted(name for name in models.__dict__
 
 def get_parser():
     parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')
-    parser.add_argument('data', metavar='DIR',
-                        help='path to dataset')
-    parser.add_argument('--save-dir', type=str, default=Path.cwd(),
-                        help='Directory to save logs and models.')
+    parser.add_argument('data', metavar='DIR', help='path to dataset')
+    parser.add_argument('--save-dir', type=str, default=Path.cwd(), help='Directory to save logs and models.')
     parser.add_argument('--arch', '-a', metavar='ARCH', default='resnet18',
                         choices=model_names,
                         help='model architecture: ' +
@@ -51,6 +49,7 @@ def get_parser():
                         metavar='N', help='print frequency (default: 10)')
     parser.add_argument('--resume', default='', type=str, metavar='PATH',
                         help='path to latest checkpoint (default: none)')
+    parser.add_argument('--small', action='store_true', help='start with smaller images')
     parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true',
                         help='evaluate model on validation set')
     parser.add_argument('--pretrained', dest='pretrained', action='store_true', help='use pre-trained model')
@@ -151,20 +150,25 @@ def main():
             optimizer.load_state_dict(checkpoint['optimizer'])
         else: print("=> no checkpoint found at '{}'".format(args.resume))
 
-    traindir = os.path.join(args.data+'-sz/160', 'train')
-    valdir = os.path.join(args.data+'-sz/160', 'val')
-    args.sz = 128
-    train_loader,val_loader,train_sampler,val_sampler = get_loaders(
-        traindir, valdir, use_val_sampler=True)
+    if args.small:
+        traindir = os.path.join(args.data+'-sz/160', 'train')
+        valdir = os.path.join(args.data+'-sz/160', 'val')
+        args.sz = 128
+    else:
+        traindir = os.path.join(args.data, 'train')
+        valdir = os.path.join(args.data, 'val')
+        args.sz = 224
+
+    train_loader,val_loader,train_sampler,val_sampler = get_loaders(traindir, valdir, use_val_sampler=True)
 
     if args.evaluate: return validate(val_loader, model, criterion, epoch, start_time)
 
     for epoch in range(args.start_epoch, args.epochs):
         adjust_learning_rate(optimizer, epoch)
         if epoch==int(args.epochs*0.4+0.5):
-        traindir = os.path.join(args.data, 'train')
-        valdir = os.path.join(args.data, 'val')
-        args.sz = 224
+            traindir = os.path.join(args.data, 'train')
+            valdir = os.path.join(args.data, 'val')
+            args.sz = 224
             train_loader,val_loader,train_sampler,val_sampler = get_loaders( traindir, valdir)
         if epoch==int(args.epochs*0.92+0.5):
             args.sz=288
