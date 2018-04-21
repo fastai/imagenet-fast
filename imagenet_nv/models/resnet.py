@@ -46,19 +46,17 @@ class BasicBlock(nn.Module):
 
     def forward(self, x):
         residual = x
+        if self.downsample is not None: residual = self.downsample(x)
 
         out = self.conv1(x)
-        out = self.bn1(out)
         out = self.relu(out)
+        out = self.bn1(out)
 
         out = self.conv2(out)
-        out = self.bn2(out)
-
-        if self.downsample is not None:
-            residual = self.downsample(x)
 
         out += residual
         out = self.relu(out)
+        out = self.bn2(out)
 
         return out
 
@@ -183,13 +181,11 @@ class ResNet(nn.Module):
         out_sz = int(512*k) * block.expansion
 
         if vgg_head:
-            features += [Flatten()
-                , nn.Linear(out_sz, 4096), bn1(4096), nn.ReLU(inplace=True), nn.Dropout(0.5)
-                , nn.Linear(4096,   4096), bn1(4096), nn.ReLU(inplace=True), nn.Dropout(0.5)
+            features += [nn.AdaptiveAvgPool2d(3), Flatten()
+                , nn.Linear(out_sz*3*3, 4096), nn.ReLU(inplace=True), bn1(4096), nn.Dropout(0.25)
+                , nn.Linear(4096,   4096), nn.ReLU(inplace=True), bn1(4096), nn.Dropout(0.25)
                 , nn.Linear(4096, num_classes)]
-        else:
-            features += [nn.AdaptiveAvgPool2d(1), Flatten()
-                , nn.Linear(out_sz, num_classes)]
+        else: features += [nn.AdaptiveAvgPool2d(1), Flatten(), nn.Linear(out_sz, num_classes)]
 
         self.features = nn.Sequential(*features)
 
@@ -210,9 +206,7 @@ class ResNet(nn.Module):
         layers = []
         layers.append(block(self.inplanes, planes, stride, downsample))
         self.inplanes = planes * block.expansion
-        for i in range(1, blocks):
-            layers.append(block(self.inplanes, planes))
-
+        for i in range(1, blocks): layers.append(block(self.inplanes, planes))
         return nn.Sequential(*layers)
 
     def forward(self, x): return self.features(x)
@@ -281,5 +275,5 @@ def bnf_resnet50 (): return ResNet(BottleneckFinal, [3, 4, 6, 3])
 def bnz_resnet50 (): return ResNet(BottleneckZero, [3, 4, 6, 3])
 def w15_resnet50 (): return ResNet(Bottleneck, [2, 3, 3, 2], k=1.5)
 def w125_resnet50(): return ResNet(Bottleneck, [3, 4, 4, 3], k=1.25)
-def w125_resnet50(): return ResNet(Bottleneck, [3, 4, 6, 3], vgg_head=True)
+def vgg_resnet50(): return ResNet(Bottleneck, [3, 4, 6, 3], vgg_head=True)
 
