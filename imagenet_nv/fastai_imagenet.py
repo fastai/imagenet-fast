@@ -72,8 +72,8 @@ def get_parser():
                         'or automatically set by using \'python -m multiproc\'.')
     return parser
 
-def torch_loader(data_path, use_val_sampler=True, train_sampler=None, val_sampler=None, min_scale=0.08, bs=192):
-    traindir = os.path.join(data_path, 'val')
+def torch_loader(data_path, use_val_sampler=True, min_scale=0.08, bs=192):
+    traindir = os.path.join(data_path, 'train')
     valdir = os.path.join(data_path, 'val')
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     tensor_tfm = [transforms.ToTensor(), normalize]
@@ -89,9 +89,8 @@ def torch_loader(data_path, use_val_sampler=True, train_sampler=None, val_sample
             transforms.CenterCrop(args.sz),
         ] + tensor_tfm))
 
-    if train_sampler is None:
-        train_sampler = (torch.utils.data.distributed.DistributedSampler(train_dataset) if args.distributed else None)
-        val_sampler = (torch.utils.data.distributed.DistributedSampler(val_dataset) if args.distributed else None)
+    train_sampler = (torch.utils.data.distributed.DistributedSampler(train_dataset) if args.distributed else None)
+    val_sampler = (torch.utils.data.distributed.DistributedSampler(val_dataset) if args.distributed else None)
 
     train_loader = torch.utils.data.DataLoader(
         train_dataset, batch_size=bs, shuffle=(train_sampler is None),
@@ -102,7 +101,9 @@ def torch_loader(data_path, use_val_sampler=True, train_sampler=None, val_sample
 
     data = ModelData(data_path, train_loader, val_loader)
     data.sz = args.sz
-    return data,train_sampler,val_sampler
+    if train_sampler is not None:
+        data.trn_sampler,data.val_sampler = train_sampler,val_sampler
+    return data
 
 # Seems to speed up training by ~2%
 class DataPrefetcher():
@@ -232,7 +233,7 @@ def main():
     model = model.cuda()
     if args.distributed: model = DDP(model)
 
-    data1,train_sampler,val_sampler = torch_loader(args.data, args.sz)
+    data1 = torch_loader(args.data, args.sz)
     learner = Learner.from_model_data(model, data1)
     learner.crit = F.cross_entropy
     learner.metrics = [accuracy, top1, top5]
@@ -240,9 +241,8 @@ def main():
 
     if args.prof: args.epochs = 1
     if args.use_clr: args.use_clr = tuple(map(float, args.use_clr.split(',')))
-    data0,_,_ = torch_loader(f'{args.data}-sz/160', 128, train_sampler,val_sampler)
-    data2,_,_ = torch_loader(args.data, 288, train_sampler,val_sampler, bs=128, min_scale=0.5)
-    data = [data0,data0,data1,data1,data1,data2,data2]
+    data0 = torch_loader(f'{args.data}-sz/160', 128)
+    data2 = torch_loader(args.data, 288, bs=128, min_scale=0.5)
 
     update_model_dir(learner, args.save_dir)
     sargs = save_args('first_run', args.save_dir)
@@ -250,16 +250,23 @@ def main():
     def_phase = {'opt_fn':optim.SGD, 'wds':args.weight_decay}
     lr = args.lr
     epoch_sched = [int(args.epochs*o+0.5) for o in (0.47, 0.31, 0.17, 0.05)]
-    phases = [
-        TrainingPhase(**def_phase, epochs=4, lr=(lr/100,lr), lr_decay=DecayType.LINEAR),
-        TrainingPhase(**def_phase, epochs=epoch_sched[0]-6, lr=lr),
-        TrainingPhase(**def_phase, epochs=2,                lr=lr),
-        TrainingPhase(**def_phase, epochs=epoch_sched[1],   lr=lr/10),
-        TrainingPhase(**def_phase, epochs=epoch_sched[2]-2, lr=lr/100),
-        TrainingPhase(**def_phase, epochs=2,                lr=lr/100),
-        TrainingPhase(**def_phase, epochs=epoch_sched[3],   lr=lr/1000)]
+    if True:
+        data = [data0,data0,data1,data1,data1,data2,data2]
+        phases = [
+            TrainingPhase(**def_phase, epochs=4, lr=(lr/100,lr), lr_decay=DecayType.LINEAR),
+            TrainingPhase(**def_phase, epochs=epoch_sched[0]-6, lr=lr),
+            TrainingPhase(**def_phase, epochs=2,                lr=lr),
+            TrainingPhase(**def_phase, epochs=epoch_sched[1],   lr=lr/10),
+            TrainingPhase(**def_phase, epochs=epoch_sched[2]-2, lr=lr/100),
+            TrainingPhase(**def_phase, epochs=2,                lr=lr/100),
+            TrainingPhase(**def_phase, epochs=epoch_sched[3],   lr=lr/1000)]
+    else:
+        data = [data0,data1]
+        phases = [
+            TrainingPhase(**def_phase, epochs=1, lr=(lr/100,lr), lr_decay=DecayType.LINEAR),
+            TrainingPhase(**def_phase, epochs=1, lr=(lr,lr/100), lr_decay=DecayType.LINEAR)]
 
-    learner.fit_opt_sched(phases, data_list=data, sampler=[train_sampler,val_sampler], loss_scale=args.loss_scale, **sargs)
+    learner.fit_opt_sched(phases, data_list=data, loss_scale=args.loss_scale, **sargs)
     save_sched(learner.sched, args.save_dir)
 
     print('Finished!')

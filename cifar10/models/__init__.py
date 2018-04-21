@@ -1,4 +1,5 @@
 from .wideresnet import *
+from .darknet import *
 from .resnet import *
 from .dpn import *
 from .se_resnet import *

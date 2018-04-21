@@ -54,7 +54,7 @@ parser.add_argument('--arch', '-a', metavar='ARCH', default='resnet56',
                     help='model architecture: ' +
                     ' | '.join(model_names) +
                     ' (default: resnet56)')
-parser.add_argument('--data-parallel', default=False, type=bool, help='Use DataParallel')
+parser.add_argument('-dp', '--data-parallel', action='store_true', help='Use DataParallel')
 parser.add_argument('-j', '--workers', default=7, type=int, metavar='N',
                     help='number of data loading workers (default: 4)')
 parser.add_argument('--epochs', default=1, type=int, metavar='N',
@@ -301,7 +301,10 @@ def main():
 
     model = model.cuda()
     if args.distributed: model = DDP(model)
-    if args.data_parallel: model = nn.DataParallel(model, [0,1,2,3])
+    if args.data_parallel:
+         n_dev = 4
+         model = nn.DataParallel(model, range(n_dev))
+         args.batch_size *= n_dev
 
     data,train_sampler,val_sampler = torch_loader(args.data, args.sz)
 
