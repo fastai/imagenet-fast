@@ -18,6 +18,12 @@ def conv3x3(in_planes, out_planes, stride=1):
     return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride,
                      padding=1, bias=False)
 
+def bn1(planes):
+    m = nn.BatchNorm1d(planes)
+    m.weight.data.fill_(1)
+    m.bias.data.zero_()
+    return m
+
 def bn(planes, init_zero=False):
     m = nn.BatchNorm2d(planes)
     m.weight.data.fill_(0 if init_zero else 1)
@@ -164,19 +170,27 @@ class Bottleneck(nn.Module):
 
 
 class ResNet(nn.Module):
-
     def __init__(self, block, layers, num_classes=1000, k=1, vgg_head=False):
-        self.inplanes = 64
         super().__init__()
+        self.inplanes = 64
+
         features = [nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False)
             , bn(64) , nn.ReLU(inplace=True) , nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
             , self._make_layer(block, int(64*k), layers[0])
             , self._make_layer(block, int(128*k), layers[1], stride=2)
             , self._make_layer(block, int(256*k), layers[2], stride=2)
             , self._make_layer(block, int(512*k), layers[3], stride=2)]
-        features += [nn.AdaptiveAvgPool2d(1)
-            , Flatten()
-            , nn.Linear(int(512*k) * block.expansion, num_classes)]
+        out_sz = int(512*k) * block.expansion
+
+        if vgg_head:
+            features += [Flatten()
+                , nn.Linear(out_sz, 4096), bn1(4096), nn.ReLU(inplace=True), nn.Dropout(0.5)
+                , nn.Linear(4096,   4096), bn1(4096), nn.ReLU(inplace=True), nn.Dropout(0.5)
+                , nn.Linear(4096, num_classes)]
+        else:
+            features += [nn.AdaptiveAvgPool2d(1), Flatten()
+                , nn.Linear(out_sz, num_classes)]
+
         self.features = nn.Sequential(*features)
 
         for m in self.modules():
@@ -263,8 +277,9 @@ def resnet152(pretrained=False, **kwargs):
         model.load_state_dict(model_zoo.load_url(model_urls['resnet152']))
     return model
 
-def bnf_resnet50  (pretrained=False): return ResNet(BottleneckFinal, [3, 4, 6, 3])
-def bnz_resnet50  (pretrained=False): return ResNet(BottleneckZero, [3, 4, 6, 3])
-def w15_resnet50  (pretrained=False): return ResNet(Bottleneck, [2, 3, 3, 2], k=1.5)
-def w125_resnet50 (pretrained=False): return ResNet(Bottleneck, [3, 4, 4, 3], k=1.25)
+def bnf_resnet50 (): return ResNet(BottleneckFinal, [3, 4, 6, 3])
+def bnz_resnet50 (): return ResNet(BottleneckZero, [3, 4, 6, 3])
+def w15_resnet50 (): return ResNet(Bottleneck, [2, 3, 3, 2], k=1.5)
+def w125_resnet50(): return ResNet(Bottleneck, [3, 4, 4, 3], k=1.25)
+def w125_resnet50(): return ResNet(Bottleneck, [3, 4, 6, 3], vgg_head=True)
 

@@ -271,4 +271,8 @@ def main():
 
     print('Finished!')
 
-main()
+
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore", category=UserWarning)
+    main()
+
