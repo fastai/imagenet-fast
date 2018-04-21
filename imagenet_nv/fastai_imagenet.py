@@ -28,8 +28,8 @@ model_names = sorted(name for name in models.__dict__
 
 def get_parser():
     parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')
-    parser.add_argument('data', metavar='DIR',
-                        help='path to dataset')
+    parser.add_argument('data', metavar='DIR', help='path to dataset')
+    parser.add_argument('--warmonly', action='store_true', help='Just 1 epoch of each size')
     parser.add_argument('--save-dir', type=str, default=Path.home()/'imagenet_training',
                         help='Directory to save logs and models.')
     parser.add_argument('--arch', '-a', metavar='ARCH', default='resnet18',
@@ -250,7 +250,12 @@ def main():
     def_phase = {'opt_fn':optim.SGD, 'wds':args.weight_decay}
     lr = args.lr
     epoch_sched = [int(args.epochs*o+0.5) for o in (0.47, 0.31, 0.17, 0.05)]
-    if True:
+    if args.warmonly:
+        data = [data0,data1]
+        phases = [
+            TrainingPhase(**def_phase, epochs=1, lr=(lr/100,lr), lr_decay=DecayType.LINEAR),
+            TrainingPhase(**def_phase, epochs=1, lr=(lr,lr/100), lr_decay=DecayType.LINEAR)]
+    else:
         data = [data0,data0,data1,data1,data1,data2,data2]
         phases = [
             TrainingPhase(**def_phase, epochs=4, lr=(lr/100,lr), lr_decay=DecayType.LINEAR),
@@ -260,11 +265,6 @@ def main():
             TrainingPhase(**def_phase, epochs=epoch_sched[2]-2, lr=lr/100),
             TrainingPhase(**def_phase, epochs=2,                lr=lr/100),
             TrainingPhase(**def_phase, epochs=epoch_sched[3],   lr=lr/1000)]
-    else:
-        data = [data0,data1]
-        phases = [
-            TrainingPhase(**def_phase, epochs=1, lr=(lr/100,lr), lr_decay=DecayType.LINEAR),
-            TrainingPhase(**def_phase, epochs=1, lr=(lr,lr/100), lr_decay=DecayType.LINEAR)]
 
     learner.fit_opt_sched(phases, data_list=data, loss_scale=args.loss_scale, **sargs)
     save_sched(learner.sched, args.save_dir)
