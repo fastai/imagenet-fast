@@ -5,6 +5,8 @@ parser = argparse.ArgumentParser(description='Fast.ai ImageNet Training')
 
 parser.add_argument('-iname', '--instance-name', required=True, type=str,
                     help='Instance name. We auto prepend instance with vpc name. instance-name -> fast-ai-instance-name')
+parser.add_argument('-p', '--project-name', required=True, type=str,
+                    help='Project name.')
 parser.add_argument('-vpc', '--vpc-name', default='fast-ai', type=str,
                     help='AWS VPC to create instance on (default: fast-ai)')
 parser.add_argument('-vs', '--volume-size', default=1010, type=int,
@@ -71,14 +73,14 @@ def run_script(client):
     print('Running command:', run_cmd)
     tmux_cmd = tsess.get_tmux_command()
     print(f'Tmux: {tmux_cmd}')
-    
+
 
 def main():
     instance_name = f'{args.vpc_name}-{args.instance_name}'
     instance = get_instance(instance_name)
-    if instance: 
+    if instance:
         print(f'Instance found with name: {instance_name}. Connecting to this instead')
-        instance.start()
+        if args.launch_method != 'find': instance.start()
     elif args.launch_method == 'find':
         print('Could not find instance with name. Please create one with spot or demand')
         return
@@ -87,7 +89,7 @@ def main():
         launch_specs = LaunchSpecs(vpc, instance_type=args.instance_type, volume_size=args.volume_size, delete_ebs=not args.persist_ebs, ami=args.ami, availability_zone=args.availability_zone)
         launch_specs.volume_type = 'io1'
         instance = launch_instance(instance_name, launch_specs.build(), args.launch_method)
-        
+
     if not instance: print('Instance creation failed.'); return;
 
     client = connect_to_instance(instance)
@@ -105,7 +107,7 @@ def main():
     elif args.use_cifar10:
         if not args.script_args: print('Must pass in script arguments to run cifar10. See train_cifar10.sh and train_cifar10.py'); return
         args.run_script = Path.cwd()/'upload_scripts/train_cifar10.sh'
-    args.script_args += f' -p {args.instance_name}'
+    args.script_args += f' -p {args.project_name}'
     if args.run_script: run_script(client)
 
 main()
