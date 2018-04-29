@@ -276,4 +276,5 @@ def bnz_resnet50 (): return ResNet(BottleneckZero, [3, 4, 6, 3])
 def w15_resnet50 (): return ResNet(Bottleneck, [2, 3, 3, 2], k=1.5)
 def w125_resnet50(): return ResNet(Bottleneck, [3, 4, 4, 3], k=1.25)
 def vgg_resnet50(): return ResNet(Bottleneck, [3, 4, 6, 3], vgg_head=True)
+def vgg_resnet34(): return ResNet(BasicBlock, [3, 4, 6, 3], vgg_head=True)
 
