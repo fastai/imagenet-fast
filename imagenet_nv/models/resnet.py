@@ -31,6 +31,35 @@ def bn(planes, init_zero=False):
     return m
 
 
+class PreBasicBlock(nn.Module):
+    expansion = 1
+
+    def __init__(self, inplanes, planes, stride=1, downsample=None):
+        super().__init__()
+        self.conv1 = conv3x3(inplanes, planes, stride)
+        self.bn1 = bn(planes)
+        self.relu = nn.ReLU(inplace=True)
+        self.conv2 = conv3x3(planes, planes)
+        self.bn2 = bn(planes)
+        self.downsample = downsample
+        self.stride = stride
+
+    def forward(self, x):
+        residual = x
+        if self.downsample is not None: residual = self.downsample(x)
+
+        out = self.bn1(x)
+        out = self.relu(out)
+        out = self.conv1(out)
+
+        out = self.bn2(out)
+        out = self.relu(out)
+        out = self.conv2(out)
+
+        out += residual
+        return out
+
+
 class BasicBlock(nn.Module):
     expansion = 1
 
@@ -277,4 +306,6 @@ def w15_resnet50 (): return ResNet(Bottleneck, [2, 3, 3, 2], k=1.5)
 def w125_resnet50(): return ResNet(Bottleneck, [3, 4, 4, 3], k=1.25)
 def vgg_resnet50(): return ResNet(Bottleneck, [3, 4, 6, 3], vgg_head=True)
 def vgg_resnet34(): return ResNet(BasicBlock, [3, 4, 6, 3], vgg_head=True)
+def preresnet34(): return ResNet(PreBasicBlock, [3, 4, 6, 3])
+def vgg_preresnet34(): return ResNet(PreBasicBlock, [3, 4, 6, 3], vgg_head=True)
 
