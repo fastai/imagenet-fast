@@ -100,12 +100,6 @@ parser.add_argument('--rank', default=0, type=int,
 def pad(img, p=4, padding_mode='reflect'):
         return Image.fromarray(np.pad(np.asarray(img), ((p, p), (p, p), (0, 0)), padding_mode))
 
-class TorchModelData(ModelData):
-    def __init__(self, path, sz, trn_dl, val_dl, aug_dl=None):
-        super().__init__(path, trn_dl, val_dl)
-        self.aug_dl = aug_dl
-        self.sz = sz
-
 def download_cifar10(data_path):
     # (AS) TODO: put this into the fastai library
     def untar_file(file_path, save_path):
@@ -167,8 +161,12 @@ def torch_loader(data_path, size):
         train_loader.stop_after = 200
         val_loader.stop_after = 0
 
-    data = TorchModelData(data_path, args.sz, train_loader, val_loader, aug_loader)
-    return data, train_sampler
+    data = ModelData(data_path, train_loader, val_loader)
+    data.sz = args.sz
+    data.aug_dl = aug_loader
+    if train_sampler is not None: data.trn_sampler = train_sampler
+        
+    return data
 
 # Seems to speed up training by ~2%
 class DataPrefetcher():
@@ -304,7 +302,7 @@ def main():
     if args.distributed: model = DDP(model)
     if args.data_parallel: model = nn.DataParallel(model, [0,1,2,3])
 
-    data, train_sampler = torch_loader(args.data, args.sz)
+    data = torch_loader(args.data, args.sz)
 
     learner = Learner.from_model_data(model, data)
     #print (learner.summary()); exit()
@@ -320,11 +318,10 @@ def main():
     sargs = save_args('first_run', args.save_dir)
 
     if args.warmup:
-        learner.fit(args.lr/10, 1, cycle_len=1, sampler=train_sampler, wds=args.weight_decay,
+        learner.fit(args.lr/10, 1, cycle_len=1, wds=args.weight_decay,
                 use_clr_beta=(100,1,0.9,0.8), loss_scale=args.loss_scale, **sargs)
 
-    learner.fit(args.lr,args.epochs, cycle_len=args.cycle_len,
-                sampler=train_sampler, wds=args.weight_decay,
+    learner.fit(args.lr,args.epochs, cycle_len=args.cycle_len, wds=args.weight_decay,
                 use_clr_beta=args.use_clr, loss_scale=args.loss_scale,
                 **sargs)
     save_sched(learner.sched, args.save_dir)
