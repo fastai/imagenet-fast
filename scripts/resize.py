@@ -32,9 +32,7 @@ def resize_imgs(p):
 
 
 for sz in szs:
-    ssz=str(sz)
-    (DEST/ssz).mkdir(exist_ok=True)
-    for ds in ('val','train'): (DEST/ssz/ds).mkdir(exist_ok=True)
+    for ds in ('val','train'): (DEST/str(sz)/ds).mkdir(parents=True, exist_ok=True)
 
 for ds in ('val','train'): resize_imgs(PATH/ds)
 
